@@ -1,0 +1,14 @@
+{
+  "name": "live-lyrics-bridge-server",
+  "version": "1.0.0",
+  "description": "Minimal WebSocket relay between the Spicetify lyrics extension and the Wallpaper Engine wallpaper (Live Lyrics by am1dreaming).",
+  "main": "bridge-server.js",
+  "author": "MinenkoY",
+  "scripts": {
+    "start": "node bridge-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "license": "MIT"
+}
