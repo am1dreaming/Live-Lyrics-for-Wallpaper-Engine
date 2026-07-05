@@ -16,7 +16,7 @@ No React, no bloat — just clean vanilla JS/CSS.
 
 <br/>
 
-<img src="wallpaper/preview.jpg" width="82%" alt="Live Lyrics — preview" />
+<img src="wallpaper/Screenshot 2026-07-05 030418.jpg" width="82%" alt="Live Lyrics — preview" />
 
 <br/><br/>
 
