@@ -1,23 +1,23 @@
 <div align="center">
 
-# 🎵 Live Lyrics <sub>for Wallpaper Engine</sub>
+# 🎵 Live Lyrics for Wallpaper Engine
 
 ### Your Spotify song, synced word-by-word, living on your desktop.
 
 Apple-Music-style karaoke lyrics · cover-art backgrounds · audio-reactive · ultrawide-ready.
 No React, no bloat — just clean vanilla JS/CSS.
-
 <br/>
 
-![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Wallpaper Engine](https://img.shields.io/badge/Wallpaper%20Engine-web-121212?style=for-the-badge)
-![Spotify](https://img.shields.io/badge/Spotify-via%20Spicetify-1DB954?style=for-the-badge&logo=spotify&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-4c1?style=for-the-badge)
+<img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?logo=windows&logoColor=white  " />
+<img src="https://img.shields.io/badge/Wallpaper%20Engine-WEB-1a1a1a" />
+<img src="https://img.shields.io/badge/Spotify-via%20Spicetify-1DB954?logo=spotify&logoColor=white" />
+<img src="https://img.shields.io/badge/license-MIT-3fb950" >
+<br>
 
 <br/>
-
-<img src="wallpaper/Recording 2026-07-05 031714.gif" width="82%" alt="Live Lyrics — preview" />
-
+<img src="wallpaper/Recording 2026-07-05 031714.gif" width="65%" alt="Live Lyrics — live preview" />
+<br/>
+<sub>Word-by-word sync · accent color from the cover · live animated art — all in real time.</sub>
 <br/><br/>
 
 **Install in one line — paste into PowerShell:**
@@ -28,7 +28,7 @@ iwr -useb https://raw.githubusercontent.com/am1dreaming/live-lyrics/main/install
 
 <sub>
 
-[✨ Features](#-features) · [⚡ Quick start](#-quick-start) · [🎛 Install options](#-install-options) · [⚙️ Settings](#️-settings) · [🧩 How it works](#-how-it-works) · [🩹 Troubleshooting](#-troubleshooting)
+[✨ Features](#-features) | [⚡ Quick start](#-quick-start) | [🎛 Install options](#-install-options) | [⚙️ Settings](#️-settings) | [🧩 How it works](#-how-it-works) | [🩹 Troubleshooting](#-troubleshooting)
 
 </sub>
 
@@ -242,7 +242,7 @@ live-lyrics/
 │   ├── app.js  spring.js  scroll-controller.js
 │   ├── lyrics-engine.js  background.js  mock-data.js
 │   ├── project.json                   WE settings (English, grouped)
-│   ├── convert-to-webm.bat  preview.jpg
+│   └── convert-to-webm.bat  preview.gif
 └── bridge/                            Spotify → wallpaper relay
     ├── spicetify-lyrics-bridge.js     Spicetify extension (ws client)
     ├── bridge-server.js               Node relay, port 8973
