@@ -267,9 +267,18 @@ function Install-Extension([string]$sp) {
   $extSrc = Join-Path $Bridge $ExtName
   if (-not (Test-Path -LiteralPath $extSrc)) { throw "Missing $extSrc - run the installer from inside the release folder." }
   $userdata = $null
-  try { $userdata = (& $sp path userdata) 2>$null } catch {}
-  if (-not $userdata) { $userdata = "$env:APPDATA\spicetify" }
-  $extDir = Join-Path ($userdata | Out-String).Trim() "Extensions"
+  try {
+    # 'spicetify path userdata' can emit extra log/colored lines (esp. right
+    # after a failed upgrade); strip ANSI escapes and keep only a real drive
+    # path so Join-Path never chokes on illegal characters.
+    $userdata = @(& $sp path userdata 2>$null) |
+      ForEach-Object { ([string]$_) -replace "$([char]27)\[[0-9;]*[A-Za-z]", '' } |
+      Where-Object { $_ -match '[A-Za-z]:\\' } |
+      Select-Object -Last 1
+    if ($userdata) { $userdata = $userdata.Trim() }
+  } catch {}
+  if (-not $userdata) { $userdata = Join-Path $env:APPDATA 'spicetify' }
+  $extDir = Join-Path $userdata "Extensions"
   New-Item -ItemType Directory -Force -Path $extDir | Out-Null
   Copy-Item -LiteralPath $extSrc -Destination $extDir -Force
   OK "Extension copied."
