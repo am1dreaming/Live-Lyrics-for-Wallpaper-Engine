@@ -558,3 +558,89 @@ body.title-accent #title {
         background: #f0a500;
         box-shadow: 0 0 10px #f0a500;
     }
+
+/* ===== Info-block styles: iOS 18 / iOS 26 switch ============================
+   Restyle the left now-playing block (#left = cover + #info) into an Apple-style
+   card. No transport buttons - web wallpapers can't control playback.
+   "Current" style = no body class (original layout above). */
+
+body.style-ios18 #left,
+body.style-ios26 #left {
+    flex-direction: column;          /* cover on top, text, then progress bar */
+    align-items: center;
+    gap: clamp(12px, 1.4vh, 24px);
+    padding: clamp(14px, 1.4vw, 28px);
+    width: fit-content;
+    min-width: clamp(200px, 20vw, 340px);
+    max-width: 100%;
+    box-sizing: border-box;
+    transform: scale(var(--card-scale, 1));   /* "Card size" slider */
+    transform-origin: center left;
+}
+
+body.style-ios18 #art,
+body.style-ios26 #art {
+    width: calc(clamp(120px, 14vw, 240px) * var(--art-scale));
+    flex: none;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+body.style-ios18 #info,
+body.style-ios26 #info {
+    gap: clamp(8px, 0.9vh, 16px);
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+body.style-ios18 #meta,
+body.style-ios26 #meta { width: 100%; text-align: center; }
+
+body.style-ios18 #title,
+body.style-ios26 #title {
+    -webkit-line-clamp: 2;
+    line-height: 1.25;
+    font-weight: 700;
+    text-align: center;
+    font-size: calc(clamp(18px, 1.5vw, 34px) * var(--info-scale));
+}
+
+body.style-ios18 #artist,
+body.style-ios26 #artist { margin-top: 0.2em; text-align: center; }
+
+body.style-ios18 #progress,
+body.style-ios26 #progress { width: 100%; }
+
+body.style-ios18 #progress-time,
+body.style-ios26 #progress-time { margin-top: 0.5em; }
+
+/* ---- iOS 18: solid dark rounded card ---- */
+body.style-ios18 #left {
+    background: rgba(28, 28, 30, 0.55);
+    -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    backdrop-filter: blur(28px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: clamp(20px, 1.8vw, 34px);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+}
+body.style-ios18 #art { border-radius: clamp(12px, 1.1vw, 20px); }
+body.style-ios18 #progress-track { height: clamp(4px, 0.4vh, 7px); background: rgba(255, 255, 255, 0.22); }
+body.style-ios18 #progress-fill { background: rgba(255, 255, 255, 0.92); }
+body.style-ios18 #progress-time { opacity: 0.5; }
+
+/* ---- iOS 26: liquid glass ---- */
+body.style-ios26 #left {
+    background: rgba(255, 255, 255, 0.10);
+    -webkit-backdrop-filter: blur(46px) saturate(1.8) brightness(1.08);
+    backdrop-filter: blur(46px) saturate(1.8) brightness(1.08);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: clamp(30px, 2.6vw, 48px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.30),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+                0 30px 80px rgba(0, 0, 0, 0.42);
+}
+body.style-ios26 #art { border-radius: clamp(18px, 1.7vw, 30px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
+body.style-ios26 #progress-track { height: clamp(5px, 0.5vh, 8px); background: rgba(255, 255, 255, 0.28); }
+body.style-ios26 #progress-fill { background: #ffffff; }
+body.style-ios26 #progress-time { opacity: 0.6; }

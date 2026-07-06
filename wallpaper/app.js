@@ -78,6 +78,11 @@
   let lastRealMessage = Date.now();
   const appStart = Date.now();
 
+  // lyrics source: "auto" (relay if running, else Windows Media), "windows"
+  // (built-in only), "relay" (Spicetify bridge only). Default set from WE props.
+  let lyricsSource = "auto";
+  let lastBridgeMsg = 0;
+
   function setStatus(cls) { statusEl.className = cls; }
 
   function weColorToCss(v) {
@@ -135,11 +140,25 @@
 
   function handleMessage(raw) {
     let msg;
-      try {
-          msg = JSON.parse(raw);
-      } catch (_) {
-          return;
-      }
+    try { msg = JSON.parse(raw); } catch (_) { return; }
+    lastBridgeMsg = Date.now();
+    if (lyricsSource === "windows") return; // Windows-Media mode ignores the relay
+    lastRealMessage = Date.now();
+    everReceived = true;
+    usingMock = false;
+    setStatus("connected");
+    applyMessage(msg, false);
+  }
+
+  function bridgeActive() {
+    return connected && (Date.now() - lastBridgeMsg) < 10000;
+  }
+
+  // Built-in path (WE native media + LRCLIB) fed by media-native.js. Applied only
+  // when the relay is not the active source, so the Spicetify bridge always wins.
+  function onNativeMessage(msg) {
+    if (lyricsSource === "relay") return;
+    if (lyricsSource === "auto" && bridgeActive()) return;
     lastRealMessage = Date.now();
     everReceived = true;
     usingMock = false;
@@ -265,8 +284,7 @@
   setInterval(() => {
     if (usingMock) return;
     const silent = Date.now() - lastRealMessage;
-    if (Date.now() - appStart > FALLBACK_AFTER && silent > FALLBACK_AFTER &&
-        (!connected || !everReceived)) {
+    if (Date.now() - appStart > FALLBACK_AFTER && silent > FALLBACK_AFTER && !everReceived) {
       enterMock();
     }
   }, 1000);
@@ -362,6 +380,7 @@
     columnSplit:       ["--col-left",              (v) => v + "%"],
     showAlbumArt:      ["--art-visible",           (v) => (v ? "1" : "0")],
     albumArtSize:      ["--art-scale",             (v) => (v / 100).toFixed(3)],
+    cardSize:          ["--card-scale",            (v) => (v / 100).toFixed(3)],
     infoOpacity:       ["--info-opacity",          (v) => (v / 100).toFixed(2)],
     infoSize:          ["--info-scale",            (v) => (v / 100).toFixed(3)],
     infoOffsetX:       ["--info-dx",               (v) => v + "vw"],
@@ -416,6 +435,12 @@
     },
     showArtist:       (v) => { artistEl.style.display = v ? "" : "none"; },
     showProgress:     (v) => progressEl.classList.toggle("hidden", !v),
+    infoStyle:        (v) => {
+      const c = document.body.classList;
+      c.remove("style-ios18", "style-ios26");
+      if (v === "ios18") c.add("style-ios18");
+      else if (v === "ios26") c.add("style-ios26");
+    },
     backgroundMode:   (v) => Background.setMode(v),
     backgroundColor:  (v) => Background.setColor(weColorToCss(v)),
     backgroundImage:  (v) => Background.setImage(normalizeLocal(v)),
@@ -428,6 +453,7 @@
       if (!audioEnabled) document.documentElement.style.setProperty("--audio-level", "0");
     },
     showStatusDot:    (v) => { statusEl.style.display = v ? "block" : "none"; },
+    lyricsSource:     (v) => { lyricsSource = String(v || "auto"); },
     websocketPort:    (v) => {
       const p = parseInt(v, 10);
       if (p && p !== port) { port = p; reconnectNow(); }
@@ -447,6 +473,7 @@
   };
 
   connect();
+  if (window.MediaNative) MediaNative.start(onNativeMessage);
   initAudio();
   requestAnimationFrame(frame);
 })();

@@ -320,13 +320,13 @@
         "text": "───────  COVER & INFO  ───────"
       },
       "showAlbumArt": {
-        "order": 66,
+        "order": 68,
         "text": "Show cover art",
         "type": "bool",
         "value": true
       },
       "albumArtSize": {
-        "order": 67,
+        "order": 69,
         "text": "Cover art size (%)",
         "type": "slider",
         "value": 140,
@@ -335,13 +335,13 @@
         "step": 1
       },
       "liveCovers": {
-        "order": 68,
+        "order": 70,
         "text": "Live covers (Apple Music, needs bridge + ffmpeg)",
         "type": "bool",
         "value": true
       },
       "artQuality": {
-        "order": 69,
+        "order": 71,
         "text": "Live cover quality",
         "type": "combo",
         "value": "1080",
@@ -361,19 +361,19 @@
         ]
       },
       "showArtist": {
-        "order": 70,
+        "order": 72,
         "text": "Show artist",
         "type": "bool",
         "value": true
       },
       "showProgress": {
-        "order": 71,
+        "order": 73,
         "text": "Show track progress",
         "type": "bool",
         "value": true
       },
       "infoOpacity": {
-        "order": 73,
+        "order": 75,
         "text": "Info block opacity (%)",
         "type": "slider",
         "value": 50,
@@ -382,7 +382,7 @@
         "step": 1
       },
       "infoSize": {
-        "order": 74,
+        "order": 76,
         "text": "Info block text size (%)",
         "type": "slider",
         "value": 100,
@@ -391,12 +391,12 @@
         "step": 1
       },
       "sectionArtFx": {
-        "order": 75,
+        "order": 77,
         "type": "text",
         "text": "───────  COVER: GEOMETRY & EFFECTS  ───────"
       },
       "artRadius": {
-        "order": 76,
+        "order": 78,
         "text": "Corner rounding (%, 50 = circle)",
         "type": "slider",
         "value": 3,
@@ -405,7 +405,7 @@
         "step": 1
       },
       "artOpacity": {
-        "order": 77,
+        "order": 79,
         "text": "Cover art opacity (%)",
         "type": "slider",
         "value": 100,
@@ -414,7 +414,7 @@
         "step": 1
       },
       "artShadow": {
-        "order": 78,
+        "order": 80,
         "text": "Shadow strength (%)",
         "type": "slider",
         "value": 130,
@@ -423,7 +423,7 @@
         "step": 5
       },
       "artGlow": {
-        "order": 79,
+        "order": 81,
         "text": "Glow in cover color (%)",
         "type": "slider",
         "value": 0,
@@ -432,7 +432,7 @@
         "step": 5
       },
       "artBorder": {
-        "order": 80,
+        "order": 82,
         "text": "Border in cover color (px)",
         "type": "slider",
         "value": 0,
@@ -441,7 +441,7 @@
         "step": 1
       },
       "artRotate": {
-        "order": 81,
+        "order": 83,
         "text": "Tilt (°)",
         "type": "slider",
         "value": 0,
@@ -450,12 +450,12 @@
         "step": 0.5
       },
       "sectionBackground": {
-        "order": 85,
+        "order": 87,
         "type": "text",
         "text": "───────  BACKGROUND  ───────"
       },
       "backgroundMode": {
-        "order": 86,
+        "order": 88,
         "text": "Background type",
         "type": "combo",
         "value": "cover",
@@ -479,7 +479,7 @@
         ]
       },
       "backgroundBlur": {
-        "order": 87,
+        "order": 89,
         "text": "Cover background blur (px)",
         "type": "slider",
         "value": 100,
@@ -488,27 +488,27 @@
         "step": 1
       },
       "backgroundColor": {
-        "order": 88,
+        "order": 90,
         "text": "Background color (Solid color mode)",
         "type": "color",
         "value": "0.1450980392156863 0.1450980392156863 0.1843137254901961"
       },
       "backgroundImage": {
-        "order": 89,
+        "order": 91,
         "text": "Image (jpg/png/gif/webp)",
         "type": "file",
         "fileType": "image",
         "value": ""
       },
       "backgroundVideo": {
-        "order": 90,
+        "order": 92,
         "text": "Video (.webm/.ogv — mp4 via convert-to-webm.bat)",
         "type": "file",
         "fileType": "video",
         "value": ""
       },
       "backgroundDim": {
-        "order": 91,
+        "order": 93,
         "text": "Custom background dim (readability, %)",
         "type": "slider",
         "value": 0,
@@ -517,7 +517,7 @@
         "step": 1
       },
       "customBgBlur": {
-        "order": 92,
+        "order": 94,
         "text": "Custom background blur (px)",
         "type": "slider",
         "value": 0,
@@ -526,7 +526,7 @@
         "step": 1
       },
       "grain": {
-        "order": 93,
+        "order": 95,
         "text": "Grain (film noise, %)",
         "type": "slider",
         "value": 81,
@@ -535,12 +535,12 @@
         "step": 1
       },
       "sectionBgFraming": {
-        "order": 95,
+        "order": 97,
         "type": "text",
         "text": "───────  CUSTOM BACKGROUND: FRAMING  ───────"
       },
       "bgFit": {
-        "order": 96,
+        "order": 98,
         "text": "Image/video fit",
         "type": "combo",
         "value": "cover",
@@ -564,7 +564,7 @@
         ]
       },
       "bgPosX": {
-        "order": 97,
+        "order": 99,
         "text": "Position X (%)",
         "type": "slider",
         "value": 50,
@@ -573,7 +573,7 @@
         "step": 1
       },
       "bgPosY": {
-        "order": 98,
+        "order": 100,
         "text": "Position Y (%)",
         "type": "slider",
         "value": 50,
@@ -582,7 +582,7 @@
         "step": 1
       },
       "bgZoom": {
-        "order": 99,
+        "order": 101,
         "text": "Zoom (%)",
         "type": "slider",
         "value": 100,
@@ -591,7 +591,7 @@
         "step": 1
       },
       "bgSaturation": {
-        "order": 100,
+        "order": 102,
         "text": "Saturation (%)",
         "type": "slider",
         "value": 100,
@@ -600,7 +600,7 @@
         "step": 5
       },
       "bgBrightness": {
-        "order": 101,
+        "order": 103,
         "text": "Brightness (%)",
         "type": "slider",
         "value": 100,
@@ -609,24 +609,24 @@
         "step": 5
       },
       "bgFlipH": {
-        "order": 102,
+        "order": 104,
         "text": "Flip horizontally",
         "type": "bool",
         "value": false
       },
       "sectionAudio": {
-        "order": 105,
+        "order": 107,
         "type": "text",
         "text": "───────  AUDIO REACTION  ───────"
       },
       "audioReactive": {
-        "order": 106,
+        "order": 108,
         "text": "Background pulse with music",
         "type": "bool",
         "value": false
       },
       "audioStrength": {
-        "order": 107,
+        "order": 109,
         "text": "Pulse strength (%)",
         "type": "slider",
         "value": 200,
@@ -635,18 +635,18 @@
         "step": 5
       },
       "sectionConnection": {
-        "order": 115,
+        "order": 117,
         "type": "text",
         "text": "───────  CONNECTION  ───────"
       },
       "showStatusDot": {
-        "order": 116,
+        "order": 119,
         "text": "Connection indicator (corner dot)",
         "type": "bool",
         "value": false
       },
       "websocketPort": {
-        "order": 117,
+        "order": 120,
         "text": "WebSocket relay port",
         "type": "textinput",
         "value": "8973"
@@ -675,6 +675,55 @@
         "order": 5,
         "type": "text",
         "text": "https://github.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine"
+      },
+      "lyricsSource": {
+        "order": 118,
+        "text": "Lyrics source",
+        "type": "combo",
+        "value": "auto",
+        "options": [
+          {
+            "label": "Auto - Windows Media, uses relay if running",
+            "value": "auto"
+          },
+          {
+            "label": "Windows Media only (no install needed)",
+            "value": "windows"
+          },
+          {
+            "label": "Relay only (Spicetify, word-by-word)",
+            "value": "relay"
+          }
+        ]
+      },
+      "infoStyle": {
+        "order": 66,
+        "text": "Info block style",
+        "type": "combo",
+        "value": "current",
+        "options": [
+          {
+            "label": "Current (Live Lyrics)",
+            "value": "current"
+          },
+          {
+            "label": "iOS 18 card",
+            "value": "ios18"
+          },
+          {
+            "label": "iOS 26 (liquid glass)",
+            "value": "ios26"
+          }
+        ]
+      },
+      "cardSize": {
+        "order": 67,
+        "text": "Card size (iOS styles, %)",
+        "type": "slider",
+        "value": 100,
+        "min": 50,
+        "max": 150,
+        "step": 1
       }
     }
   }
