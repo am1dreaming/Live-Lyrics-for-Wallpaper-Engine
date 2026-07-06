@@ -236,9 +236,9 @@
   function showNoLyrics(track) {
     LyricsEngine.setLyrics(null);
     viewportEl.style.visibility = "hidden";
-    nlTitle.textContent = track ? track.title : "";
-    nlArtist.textContent = track ? track.artist : "";
-    noLyricsEl.classList.add("show");
+    nlTitle.textContent = "";
+    nlArtist.textContent = "";
+    noLyricsEl.classList.remove("show");
   }
 
   function enterMock() {
