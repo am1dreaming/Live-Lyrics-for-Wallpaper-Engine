@@ -402,14 +402,12 @@
     emphasisStrength: (v) => LyricsEngine.setEmphasisStrength(v / 100),
     glowStrength:     (v) => LyricsEngine.setGlowStrength(v / 100),
     interludeDots:    (v) => LyricsEngine.setInterludes(!!v),
-    accentFromCover:  (v) => Background.setAccentEnabled(!!v),
     liveCovers:       (v) => {
       liveCoversOn = !!v;
       if (!liveCoversOn) clearArtVideo();
       else if (pendingArt) applyAnimatedArt(pendingArt);
     },
     artQuality:       (v) => { artQuality = Number(v) || 0; sendArtConfig(); },
-    titleAccent:      (v) => document.body.classList.toggle("title-accent", !!v),
     grain:            (v) => {
       const n = Number(v) || 0;
 

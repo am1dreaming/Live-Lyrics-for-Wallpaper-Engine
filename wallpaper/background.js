@@ -13,7 +13,7 @@ window.Background = (function () {
   let color = "#0b0b12";
   let image = "";
   let video = "";
-  let accentEnabled = true;
+  let accentEnabled = false;
   let proxyBase = "";
   let accentToken = 0;
 

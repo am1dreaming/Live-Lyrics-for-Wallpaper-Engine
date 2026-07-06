@@ -167,12 +167,6 @@
         "max": 220,
         "step": 5
       },
-      "accentFromCover": {
-        "order": 28,
-        "text": "Glow color from cover art",
-        "type": "bool",
-        "value": false
-      },
       "interludeDots": {
         "order": 29,
         "text": "Dots during instrumental breaks",
@@ -381,12 +375,6 @@
         "text": "Show track progress",
         "type": "bool",
         "value": true
-      },
-      "titleAccent": {
-        "order": 67,
-        "text": "Title in cover color",
-        "type": "bool",
-        "value": false
       },
       "infoOpacity": {
         "order": 68,
