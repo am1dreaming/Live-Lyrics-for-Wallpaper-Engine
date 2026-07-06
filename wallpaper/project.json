@@ -5,7 +5,10 @@
   "file": "index.html",
   "preview": "preview.gif",
   "visibility": "private",
-  "tags": [ "Abstract", "Music" ],
+  "tags": [
+    "Abstract",
+    "Music"
+  ],
   "general": {
     "properties": {
       "watermark": {
@@ -13,21 +16,19 @@
         "type": "text",
         "text": "✦  create by MinenkoY  ✦"
       },
-
       "schemecolor": {
-        "order": 1,
+        "order": 6,
         "text": "ui_browse_properties_scheme_color",
         "type": "color",
         "value": "0.79 0.22 0.31"
       },
-
       "sectionScreen": {
-        "order": 5,
+        "order": 10,
         "type": "text",
         "text": "───────  SCREEN  ───────"
       },
       "screenFormat": {
-        "order": 6,
+        "order": 11,
         "text": "Screen format (applies sensible defaults)",
         "type": "combo",
         "value": "auto",
@@ -50,14 +51,13 @@
           }
         ]
       },
-
       "sectionLyrics": {
-        "order": 10,
+        "order": 15,
         "type": "text",
         "text": "───────  LYRICS  ───────"
       },
       "fontSize": {
-        "order": 11,
+        "order": 16,
         "text": "Text size (%)",
         "type": "slider",
         "value": 130,
@@ -66,7 +66,7 @@
         "step": 1
       },
       "lyricsWidth": {
-        "order": 12,
+        "order": 17,
         "text": "Line width (%)",
         "type": "slider",
         "value": 69,
@@ -75,7 +75,7 @@
         "step": 1
       },
       "visibleAmount": {
-        "order": 13,
+        "order": 18,
         "text": "Lyrics area height (%)",
         "type": "slider",
         "value": 69,
@@ -84,7 +84,7 @@
         "step": 1
       },
       "lyricsAnchor": {
-        "order": 14,
+        "order": 19,
         "text": "Active line anchor (± from center, %)",
         "type": "slider",
         "value": -3,
@@ -93,7 +93,7 @@
         "step": 1
       },
       "lyricsOffset": {
-        "order": 15,
+        "order": 20,
         "text": "Timing offset (ms, higher = earlier)",
         "type": "slider",
         "value": 0,
@@ -101,14 +101,13 @@
         "max": 1500,
         "step": 10
       },
-
       "sectionLineStyle": {
-        "order": 20,
+        "order": 25,
         "type": "text",
         "text": "───────  LINE STYLE  ───────"
       },
       "activeLineOpacity": {
-        "order": 21,
+        "order": 26,
         "text": "Active line opacity (%)",
         "type": "slider",
         "value": 100,
@@ -117,7 +116,7 @@
         "step": 1
       },
       "notSungOpacity": {
-        "order": 22,
+        "order": 27,
         "text": "Upcoming lines opacity (%)",
         "type": "slider",
         "value": 10,
@@ -126,7 +125,7 @@
         "step": 1
       },
       "sungOpacity": {
-        "order": 23,
+        "order": 28,
         "text": "Sung lines opacity (%)",
         "type": "slider",
         "value": 10,
@@ -135,7 +134,7 @@
         "step": 1
       },
       "activeLineScale": {
-        "order": 24,
+        "order": 29,
         "text": "Active line scale-up (Apple Music, %)",
         "type": "slider",
         "value": 100,
@@ -144,13 +143,13 @@
         "step": 1
       },
       "letterEmphasis": {
-        "order": 25,
+        "order": 30,
         "text": "Letter animation (off = simple highlight)",
         "type": "bool",
         "value": true
       },
       "emphasisStrength": {
-        "order": 26,
+        "order": 31,
         "text": "Letter animation strength (%)",
         "type": "slider",
         "value": 120,
@@ -159,7 +158,7 @@
         "step": 5
       },
       "glowStrength": {
-        "order": 27,
+        "order": 32,
         "text": "Letter glow strength (%)",
         "type": "slider",
         "value": 120,
@@ -168,19 +167,19 @@
         "step": 5
       },
       "interludeDots": {
-        "order": 29,
+        "order": 34,
         "text": "Dots during instrumental breaks",
         "type": "bool",
         "value": true
       },
       "activeHighlight": {
-        "order": 30,
+        "order": 35,
         "text": "Frosted backdrop behind active line",
         "type": "bool",
         "value": false
       },
       "highlightBlur": {
-        "order": 31,
+        "order": 36,
         "text": "Backdrop blur (px)",
         "type": "slider",
         "value": 40,
@@ -188,14 +187,13 @@
         "max": 40,
         "step": 1
       },
-
       "sectionLayout": {
-        "order": 40,
+        "order": 45,
         "type": "text",
         "text": "───────  LAYOUT  ───────"
       },
       "offsetX": {
-        "order": 41,
+        "order": 46,
         "text": "Shift all content X (vw)",
         "type": "slider",
         "value": 10,
@@ -204,7 +202,7 @@
         "step": 0.5
       },
       "offsetY": {
-        "order": 42,
+        "order": 47,
         "text": "Shift all content Y (vh)",
         "type": "slider",
         "value": -2,
@@ -213,7 +211,7 @@
         "step": 0.5
       },
       "columnSplit": {
-        "order": 43,
+        "order": 48,
         "text": "Left column width (%)",
         "type": "slider",
         "value": 33,
@@ -221,14 +219,13 @@
         "max": 55,
         "step": 1
       },
-
       "sectionBlocks": {
-        "order": 45,
+        "order": 50,
         "type": "text",
         "text": "───────  BLOCK POSITIONS (cover / title / artist)  ───────"
       },
       "infoOffsetX": {
-        "order": 46,
+        "order": 51,
         "text": "Info block: X (vw)",
         "type": "slider",
         "value": 0,
@@ -237,7 +234,7 @@
         "step": 0.25
       },
       "infoOffsetY": {
-        "order": 47,
+        "order": 52,
         "text": "Info block: Y (vh)",
         "type": "slider",
         "value": 0,
@@ -246,7 +243,7 @@
         "step": 0.25
       },
       "titleOffsetX": {
-        "order": 48,
+        "order": 53,
         "text": "Title: X (vw)",
         "type": "slider",
         "value": 0,
@@ -255,7 +252,7 @@
         "step": 0.25
       },
       "titleOffsetY": {
-        "order": 49,
+        "order": 54,
         "text": "Title: Y (vh)",
         "type": "slider",
         "value": 0,
@@ -264,7 +261,7 @@
         "step": 0.25
       },
       "artistOffsetX": {
-        "order": 50,
+        "order": 55,
         "text": "Artist: X (vw)",
         "type": "slider",
         "value": 0,
@@ -273,7 +270,7 @@
         "step": 0.25
       },
       "artistOffsetY": {
-        "order": 51,
+        "order": 56,
         "text": "Artist: Y (vh)",
         "type": "slider",
         "value": 0,
@@ -282,7 +279,7 @@
         "step": 0.25
       },
       "progressOffsetX": {
-        "order": 52,
+        "order": 57,
         "text": "Progress: X (vw)",
         "type": "slider",
         "value": 0,
@@ -291,7 +288,7 @@
         "step": 0.25
       },
       "progressOffsetY": {
-        "order": 53,
+        "order": 58,
         "text": "Progress: Y (vh)",
         "type": "slider",
         "value": 0,
@@ -300,7 +297,7 @@
         "step": 0.25
       },
       "artOffsetX": {
-        "order": 54,
+        "order": 59,
         "text": "Cover art: X (vw)",
         "type": "slider",
         "value": 0,
@@ -309,7 +306,7 @@
         "step": 0.25
       },
       "artOffsetY": {
-        "order": 55,
+        "order": 60,
         "text": "Cover art: Y (vh)",
         "type": "slider",
         "value": 0,
@@ -317,20 +314,19 @@
         "max": 20,
         "step": 0.25
       },
-
       "sectionInfo": {
-        "order": 60,
+        "order": 65,
         "type": "text",
         "text": "───────  COVER & INFO  ───────"
       },
       "showAlbumArt": {
-        "order": 61,
+        "order": 66,
         "text": "Show cover art",
         "type": "bool",
         "value": true
       },
       "albumArtSize": {
-        "order": 62,
+        "order": 67,
         "text": "Cover art size (%)",
         "type": "slider",
         "value": 140,
@@ -339,13 +335,13 @@
         "step": 1
       },
       "liveCovers": {
-        "order": 63,
+        "order": 68,
         "text": "Live covers (Apple Music, needs bridge + ffmpeg)",
         "type": "bool",
         "value": true
       },
       "artQuality": {
-        "order": 64,
+        "order": 69,
         "text": "Live cover quality",
         "type": "combo",
         "value": "1080",
@@ -365,19 +361,19 @@
         ]
       },
       "showArtist": {
-        "order": 65,
+        "order": 70,
         "text": "Show artist",
         "type": "bool",
         "value": true
       },
       "showProgress": {
-        "order": 66,
+        "order": 71,
         "text": "Show track progress",
         "type": "bool",
         "value": true
       },
       "infoOpacity": {
-        "order": 68,
+        "order": 73,
         "text": "Info block opacity (%)",
         "type": "slider",
         "value": 50,
@@ -386,7 +382,7 @@
         "step": 1
       },
       "infoSize": {
-        "order": 69,
+        "order": 74,
         "text": "Info block text size (%)",
         "type": "slider",
         "value": 100,
@@ -394,14 +390,13 @@
         "max": 180,
         "step": 1
       },
-
       "sectionArtFx": {
-        "order": 70,
+        "order": 75,
         "type": "text",
         "text": "───────  COVER: GEOMETRY & EFFECTS  ───────"
       },
       "artRadius": {
-        "order": 71,
+        "order": 76,
         "text": "Corner rounding (%, 50 = circle)",
         "type": "slider",
         "value": 3,
@@ -410,7 +405,7 @@
         "step": 1
       },
       "artOpacity": {
-        "order": 72,
+        "order": 77,
         "text": "Cover art opacity (%)",
         "type": "slider",
         "value": 100,
@@ -419,7 +414,7 @@
         "step": 1
       },
       "artShadow": {
-        "order": 73,
+        "order": 78,
         "text": "Shadow strength (%)",
         "type": "slider",
         "value": 130,
@@ -428,7 +423,7 @@
         "step": 5
       },
       "artGlow": {
-        "order": 74,
+        "order": 79,
         "text": "Glow in cover color (%)",
         "type": "slider",
         "value": 0,
@@ -437,7 +432,7 @@
         "step": 5
       },
       "artBorder": {
-        "order": 75,
+        "order": 80,
         "text": "Border in cover color (px)",
         "type": "slider",
         "value": 0,
@@ -446,7 +441,7 @@
         "step": 1
       },
       "artRotate": {
-        "order": 76,
+        "order": 81,
         "text": "Tilt (°)",
         "type": "slider",
         "value": 0,
@@ -454,14 +449,13 @@
         "max": 15,
         "step": 0.5
       },
-
       "sectionBackground": {
-        "order": 80,
+        "order": 85,
         "type": "text",
         "text": "───────  BACKGROUND  ───────"
       },
       "backgroundMode": {
-        "order": 81,
+        "order": 86,
         "text": "Background type",
         "type": "combo",
         "value": "cover",
@@ -485,7 +479,7 @@
         ]
       },
       "backgroundBlur": {
-        "order": 82,
+        "order": 87,
         "text": "Cover background blur (px)",
         "type": "slider",
         "value": 100,
@@ -494,27 +488,27 @@
         "step": 1
       },
       "backgroundColor": {
-        "order": 83,
+        "order": 88,
         "text": "Background color (Solid color mode)",
         "type": "color",
         "value": "0.1450980392156863 0.1450980392156863 0.1843137254901961"
       },
       "backgroundImage": {
-        "order": 84,
+        "order": 89,
         "text": "Image (jpg/png/gif/webp)",
         "type": "file",
         "fileType": "image",
         "value": ""
       },
       "backgroundVideo": {
-        "order": 85,
+        "order": 90,
         "text": "Video (.webm/.ogv — mp4 via convert-to-webm.bat)",
         "type": "file",
         "fileType": "video",
         "value": ""
       },
       "backgroundDim": {
-        "order": 86,
+        "order": 91,
         "text": "Custom background dim (readability, %)",
         "type": "slider",
         "value": 0,
@@ -523,7 +517,7 @@
         "step": 1
       },
       "customBgBlur": {
-        "order": 87,
+        "order": 92,
         "text": "Custom background blur (px)",
         "type": "slider",
         "value": 0,
@@ -532,7 +526,7 @@
         "step": 1
       },
       "grain": {
-        "order": 88,
+        "order": 93,
         "text": "Grain (film noise, %)",
         "type": "slider",
         "value": 81,
@@ -540,14 +534,13 @@
         "max": 100,
         "step": 1
       },
-
       "sectionBgFraming": {
-        "order": 90,
+        "order": 95,
         "type": "text",
         "text": "───────  CUSTOM BACKGROUND: FRAMING  ───────"
       },
       "bgFit": {
-        "order": 91,
+        "order": 96,
         "text": "Image/video fit",
         "type": "combo",
         "value": "cover",
@@ -571,7 +564,7 @@
         ]
       },
       "bgPosX": {
-        "order": 92,
+        "order": 97,
         "text": "Position X (%)",
         "type": "slider",
         "value": 50,
@@ -580,7 +573,7 @@
         "step": 1
       },
       "bgPosY": {
-        "order": 93,
+        "order": 98,
         "text": "Position Y (%)",
         "type": "slider",
         "value": 50,
@@ -589,7 +582,7 @@
         "step": 1
       },
       "bgZoom": {
-        "order": 94,
+        "order": 99,
         "text": "Zoom (%)",
         "type": "slider",
         "value": 100,
@@ -598,7 +591,7 @@
         "step": 1
       },
       "bgSaturation": {
-        "order": 95,
+        "order": 100,
         "text": "Saturation (%)",
         "type": "slider",
         "value": 100,
@@ -607,7 +600,7 @@
         "step": 5
       },
       "bgBrightness": {
-        "order": 96,
+        "order": 101,
         "text": "Brightness (%)",
         "type": "slider",
         "value": 100,
@@ -616,25 +609,24 @@
         "step": 5
       },
       "bgFlipH": {
-        "order": 97,
+        "order": 102,
         "text": "Flip horizontally",
         "type": "bool",
         "value": false
       },
-
       "sectionAudio": {
-        "order": 100,
+        "order": 105,
         "type": "text",
         "text": "───────  AUDIO REACTION  ───────"
       },
       "audioReactive": {
-        "order": 101,
+        "order": 106,
         "text": "Background pulse with music",
         "type": "bool",
         "value": false
       },
       "audioStrength": {
-        "order": 102,
+        "order": 107,
         "text": "Pulse strength (%)",
         "type": "slider",
         "value": 200,
@@ -642,23 +634,47 @@
         "max": 200,
         "step": 5
       },
-
       "sectionConnection": {
-        "order": 110,
+        "order": 115,
         "type": "text",
         "text": "───────  CONNECTION  ───────"
       },
       "showStatusDot": {
-        "order": 111,
+        "order": 116,
         "text": "Connection indicator (corner dot)",
         "type": "bool",
         "value": false
       },
       "websocketPort": {
-        "order": 112,
+        "order": 117,
         "text": "WebSocket relay port",
         "type": "textinput",
         "value": "8973"
+      },
+      "setupNote1": {
+        "order": 1,
+        "type": "text",
+        "text": "⚠️ SETUP REQUIRED - on its own this wallpaper shows a DEMO track. To display YOUR real Spotify lyrics it needs a tiny free helper (Spicetify extension + local relay)."
+      },
+      "setupNote2": {
+        "order": 2,
+        "type": "text",
+        "text": "One-line install in PowerShell:"
+      },
+      "setupNote3": {
+        "order": 3,
+        "type": "text",
+        "text": "iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine/main/install-web.ps1 | iex"
+      },
+      "setupNote4": {
+        "order": 4,
+        "type": "text",
+        "text": "Full guide & source code:"
+      },
+      "setupNote5": {
+        "order": 5,
+        "type": "text",
+        "text": "https://github.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine"
       }
     }
   }
