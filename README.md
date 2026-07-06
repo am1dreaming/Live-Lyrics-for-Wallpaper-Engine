@@ -4,7 +4,7 @@
 
 ### Your Spotify song, synced word-by-word, living on your desktop.
 
-Apple-Music-style karaoke lyrics · cover-art backgrounds · audio-reactive · ultrawide-ready.
+Karaoke lyrics · cover-art backgrounds · audio-reactive · ultrawide-ready.
 No React, no bloat — just clean vanilla JS/CSS.
 <br/>
 
