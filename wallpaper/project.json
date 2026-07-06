@@ -1,9 +1,9 @@
 {
   "title": "lyric music by am1dreaming",
-  "description": "Synchronized Spotify lyrics wallpaper (ultrawide-friendly, 21:9). Needs the bridge extension and a local relay on the configured port. Without Spotify it runs a demo track. create by MinenkoY.",
+  "description": "Your Spotify song, synced word-by-word on your desktop - smooth karaoke-style\nlyrics that follow the music. Accent color pulled from the album cover, live\ncover art, audio-reactive effects. Ultrawide-ready (16:9 / 21:9 / 32:9).\n\n⚠️ SETUP REQUIRED — on its own this wallpaper shows a DEMO track. To display YOUR\nreal Spotify lyrics it needs a tiny free helper (Spicetify extension + local\nrelay). One-line install in PowerShell:\n\n  iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine/main/install-web.ps1 | iex\n\nFull guide & source code:\n  https://github.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine\n\nFeatures:\n• Word-by-word sync with letter emphasis + spring auto-scroll\n• Accent color from the cover, frosted backdrop behind the active line\n• Backgrounds: blurred cover / solid color / your image / your video\n• Live animated covers + audio-reactive pulse\n• Fully positionable & customizable in the WE settings panel\n\nNo Spotify running? A demo track plays so you can preview the look.\n\nCreated by MinenkoY · not affiliated with Spotify or Wallpaper Engine.",
   "type": "web",
   "file": "index.html",
-  "preview": "preview.jpg",
+  "preview": "preview.gif",
   "visibility": "private",
   "tags": [ "Abstract", "Music" ],
   "general": {
