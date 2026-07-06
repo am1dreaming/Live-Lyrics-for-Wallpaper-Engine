@@ -157,7 +157,7 @@ A Spicetify extension can't open a server (it lives inside Spotify's renderer), 
 └──────────────────────┘               └─────────────────┘              └────────────────────┘
 ```
 
-The relay also resolves **animated album covers** (Apple Music editorial video → VP9 WebM via ffmpeg) and serves them to the wallpaper.
+The relay also resolves **animated album covers**.
 
 ---
 
