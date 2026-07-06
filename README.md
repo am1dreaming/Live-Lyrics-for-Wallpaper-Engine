@@ -23,7 +23,7 @@ No React, no bloat — just clean vanilla JS/CSS.
 **Install in one line — paste into PowerShell:**
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/am1dreaming/live-lyrics/main/install-web.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine/main/install-web.ps1 | iex
 ```
 
 <sub>
