@@ -1,9 +1,9 @@
 # MinenkoY
 # lyric music by am1dreaming - web bootstrap installer.
 # One-liner (run in PowerShell):
-#     iwr -useb https://raw.githubusercontent.com/am1dreaming/release/main/install-web.ps1 | iex
+#     iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine/main/install-web.ps1 | iex
 $Owner = 'am1dreaming'
-$Repo = 'release'
+$Repo = 'Live-Lyrics-for-Wallpaper-Engine'
 $Branch = 'main'
 
 $ErrorActionPreference = 'Stop'
