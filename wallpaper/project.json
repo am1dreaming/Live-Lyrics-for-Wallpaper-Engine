@@ -676,6 +676,11 @@
         "type": "text",
         "text": "https://github.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine"
       },
+      "bridgeNoteCovers": {
+        "order": 7,
+        "type": "text",
+        "text": "⚠ LIVE COVERS & WORD-BY-WORD SYNC need the free bridge (install command above). Basic line-synced lyrics + cover still work without it via Windows Media."
+      },
       "lyricsSource": {
         "order": 118,
         "text": "Lyrics source",
@@ -695,35 +700,6 @@
             "value": "relay"
           }
         ]
-      },
-      "infoStyle": {
-        "order": 66,
-        "text": "Info block style",
-        "type": "combo",
-        "value": "current",
-        "options": [
-          {
-            "label": "Current (Live Lyrics)",
-            "value": "current"
-          },
-          {
-            "label": "iOS 18 card",
-            "value": "ios18"
-          },
-          {
-            "label": "iOS 26 (liquid glass)",
-            "value": "ios26"
-          }
-        ]
-      },
-      "cardSize": {
-        "order": 67,
-        "text": "Card size (iOS styles, %)",
-        "type": "slider",
-        "value": 100,
-        "min": 50,
-        "max": 150,
-        "step": 1
       }
     }
   }

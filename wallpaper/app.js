@@ -380,7 +380,6 @@
     columnSplit:       ["--col-left",              (v) => v + "%"],
     showAlbumArt:      ["--art-visible",           (v) => (v ? "1" : "0")],
     albumArtSize:      ["--art-scale",             (v) => (v / 100).toFixed(3)],
-    cardSize:          ["--card-scale",            (v) => (v / 100).toFixed(3)],
     infoOpacity:       ["--info-opacity",          (v) => (v / 100).toFixed(2)],
     infoSize:          ["--info-scale",            (v) => (v / 100).toFixed(3)],
     infoOffsetX:       ["--info-dx",               (v) => v + "vw"],
@@ -435,12 +434,6 @@
     },
     showArtist:       (v) => { artistEl.style.display = v ? "" : "none"; },
     showProgress:     (v) => progressEl.classList.toggle("hidden", !v),
-    infoStyle:        (v) => {
-      const c = document.body.classList;
-      c.remove("style-ios18", "style-ios26");
-      if (v === "ios18") c.add("style-ios18");
-      else if (v === "ios26") c.add("style-ios26");
-    },
     backgroundMode:   (v) => Background.setMode(v),
     backgroundColor:  (v) => Background.setColor(weColorToCss(v)),
     backgroundImage:  (v) => Background.setImage(normalizeLocal(v)),
