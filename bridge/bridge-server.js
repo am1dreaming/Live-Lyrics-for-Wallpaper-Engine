@@ -5,7 +5,9 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { spawn, execSync } = require("child_process");
+const { 
+  spawn, execSync
+} = require("child_process");
 
 const PORT = Number(process.env.BRIDGE_PORT) || 8973;
 const CACHE_DIR = path.join(__dirname, "cache");
