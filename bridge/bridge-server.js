@@ -11,6 +11,7 @@ const PORT = Number(process.env.BRIDGE_PORT) || 8973;
 const CACHE_DIR = path.join(__dirname, "cache");
 const TOKEN_FILE = path.join(__dirname, "am-token.json");
 const CONFIG_FILE = path.join(__dirname, "art-config.json");
+const CACHE_MAX_BYTES = (Number(process.env.BRIDGE_CACHE_MB) || 600) * 1024 * 1024;
 
 let targetHeight = 486;
 try {
@@ -20,19 +21,45 @@ try {
 
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 
+const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
+
+function isBlockedProxyHost(host) {
+  host = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
+  const m4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (m4) {
+    if (m4.slice(1).some((o) => +o > 255)) return true;
+    const a = +m4[1], b = +m4[2];
+    return a === 0 || a === 127 || a === 10 ||
+      (a === 169 && b === 254) || (a === 192 && b === 168) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
+  }
+  if (host.includes(":"))
+    return host === "::1" || host === "::" || host.startsWith("fe80:") ||
+      host.startsWith("fc") || host.startsWith("fd");
+  if (!/[a-z]/.test(host)) return true;
+  if (!/^[a-z0-9.-]+$/.test(host)) return true;
+  if (/(^|\.)0x[0-9a-f]+(\.|$)/.test(host)) return true;
+  return false;
+}
+
 const server = http.createServer((req, res) => {
 
   const m = /^\/art\/([A-Za-z0-9._-]+\.webm)$/.exec(req.url || "");
   if (m) {
     const file = path.join(CACHE_DIR, m[1]);
-    if (fs.existsSync(file)) {
+    let size = -1;
+    try { size = fs.statSync(file).size; } catch (_) {}
+    if (size >= 0) {
       res.writeHead(200, {
         "Content-Type": "video/webm",
-        "Content-Length": fs.statSync(file).size,
+        "Content-Length": size,
         "Cache-Control": "public, max-age=31536000",
         "Access-Control-Allow-Origin": "*",
       });
-      fs.createReadStream(file).pipe(res);
+      const stream = fs.createReadStream(file);
+      stream.on("error", () => { try { res.destroy(); } catch (_) {} });
+      stream.pipe(res);
       return;
     }
     res.writeHead(404); res.end("not found");
@@ -44,6 +71,9 @@ const server = http.createServer((req, res) => {
     try { target = new URL(req.url, "http://localhost").searchParams.get("u"); } catch (_) {}
     if (!target || !/^https?:\/\//i.test(target)) { res.writeHead(400); res.end("bad url"); return; }
     const proxyImage = (url, redirects) => {
+      let phost = "";
+      try { phost = new URL(url).hostname; } catch (_) {}
+      if (isBlockedProxyHost(phost)) { if (!res.headersSent) { res.writeHead(403); res.end("blocked host"); } return; }
       const mod = url.startsWith("https:") ? https : http;
       const up = mod.get(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*" } }, (r) => {
         if (r.statusCode >= 301 && r.statusCode <= 308 && r.headers.location && redirects > 0) {
@@ -69,8 +99,8 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocket.Server({ server });
-server.listen(PORT, () => {
-  console.log(`[bridge] relay listening on ws://localhost:${PORT} (+ http /art)`);
+server.listen(PORT, HOST, () => {
+  console.log(`[bridge] relay listening on ws://${HOST}:${PORT} (+ http /art)`);
   console.log(`[bridge] ffmpeg: ${FFMPEG || "NOT FOUND — animated covers disabled"}`);
 });
 
@@ -189,21 +219,73 @@ function findFfmpeg() {
 }
 const FFMPEG = findFfmpeg();
 
+const SCRAPE_NET_ATTEMPTS = 3;
+const SCRAPE_COOLDOWN_MAX = 5 * 60 * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const BUNDLE_PATTERNS = [
+  /crossorigin src="(\/assets\/index[^"]+\.js)"/g,
+  /src="(\/assets\/index[^"]+\.js)"/g,
+  /src="(\/assets\/[^"]+\.js)"/g,
+];
+const TOKEN_RE = /eyJ[A-Za-z0-9._-]{100,}/;
+
 let amToken = null;
 try { amToken = JSON.parse(fs.readFileSync(TOKEN_FILE, "utf8")).token || null; } catch (_) {}
 
-async function scrapeToken() {
-  const page = await fetchText("https://music.apple.com/us/browse");
-  const jsMatch = /crossorigin src="(\/assets\/index[^"]+\.js)"/.exec(page.body);
-  if (!jsMatch) throw new Error("bundle path not found on music.apple.com");
-  const bundle = await fetchText("https://music.apple.com" + jsMatch[1]);
+let scrapeInProgress = null;
+let scrapeFailures = 0;
+let scrapeCooldownUntil = 0;
 
-  const tok = /eyJ[A-Za-z0-9._-]{100,}/.exec(bundle.body);
-  if (!tok) throw new Error("token not found in bundle");
-  amToken = tok[0];
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token: amToken, at: Date.now() }));
-  console.log("[art] scraped fresh Apple Music web token");
-  return amToken;
+async function fetchTextRetry(url, headers) {
+  let lastErr;
+  for (let i = 0; i < SCRAPE_NET_ATTEMPTS; i++) {
+    try { return await fetchText(url, headers); }
+    catch (e) { lastErr = e; if (i < SCRAPE_NET_ATTEMPTS - 1) await sleep(500 * (i + 1)); }
+  }
+  throw lastErr;
+}
+
+async function doScrapeToken() {
+  const page = await fetchTextRetry("https://music.apple.com/us/browse");
+  const bundles = [];
+  for (const re of BUNDLE_PATTERNS) {
+    let m;
+    while ((m = re.exec(page.body))) if (!bundles.includes(m[1])) bundles.push(m[1]);
+  }
+  if (!bundles.length) throw new Error("bundle path not found on music.apple.com");
+  for (const b of bundles.slice(0, 6)) {
+    const bundle = await fetchTextRetry("https://music.apple.com" + b);
+    const tok = TOKEN_RE.exec(bundle.body);
+    if (!tok) continue;
+    amToken = tok[0];
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token: amToken, at: Date.now() }));
+    console.log("[art] scraped fresh Apple Music web token");
+    return amToken;
+  }
+  throw new Error("token not found in bundle");
+}
+
+function scrapeToken() {
+  if (scrapeInProgress) return scrapeInProgress;
+  if (Date.now() < scrapeCooldownUntil) {
+    if (amToken) return Promise.resolve(amToken);
+    return Promise.reject(new Error("token scrape in cooldown, no cached token"));
+  }
+  scrapeInProgress = doScrapeToken()
+    .then((tok) => { scrapeFailures = 0; scrapeCooldownUntil = 0; return tok; })
+    .catch((err) => {
+      scrapeFailures++;
+      const wait = Math.min(SCRAPE_COOLDOWN_MAX, 15000 * 2 ** (scrapeFailures - 1));
+      scrapeCooldownUntil = Date.now() + wait;
+      console.warn(`[art] token scrape failed (${scrapeFailures}x): ${err.message}; ` +
+        (amToken ? `using stale token, cooldown ${Math.round(wait / 1000)}s`
+                 : `no cached token, cooldown ${Math.round(wait / 1000)}s`));
+      if (amToken) return amToken;
+      throw err;
+    })
+    .finally(() => { scrapeInProgress = null; });
+  return scrapeInProgress;
 }
 
 async function ampApi(pathPart, retry) {
@@ -213,8 +295,9 @@ async function ampApi(pathPart, retry) {
     Origin: "https://music.apple.com",
   });
   if ((res.status === 401 || res.status === 403) && retry !== false) {
+    const before = amToken;
     await scrapeToken();
-    return ampApi(pathPart, false);
+    if (amToken && amToken !== before) return ampApi(pathPart, false);
   }
   if (res.status !== 200) throw new Error("amp-api " + res.status);
   return JSON.parse(res.body);
@@ -306,11 +389,14 @@ async function pickVariant(masterUrl) {
   return best ? best.url : masterUrl;
 }
 
+const TRANSCODE_TIMEOUT_MS = 90 * 1000;
+
 function transcode(m3u8Url, outFile) {
   return new Promise((resolve, reject) => {
     const tmp = outFile + ".tmp.webm";
     const args = [
       "-y", "-loglevel", "error",
+      "-protocol_whitelist", "http,https,tcp,tls,crypto",
       "-i", m3u8Url,
       "-an",
       "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0",
@@ -321,14 +407,30 @@ function transcode(m3u8Url, outFile) {
     ];
     const p = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
     let err = "";
+    let settled = false;
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(arg);
+    };
+    const timer = setTimeout(() => {
+      try { p.kill("SIGKILL"); } catch (_) {}
+      try { fs.unlinkSync(tmp); } catch (_) {}
+      finish(reject, new Error("ffmpeg timeout after " + (TRANSCODE_TIMEOUT_MS / 1000) + "s"));
+    }, TRANSCODE_TIMEOUT_MS);
     p.stderr.on("data", (d) => (err += d));
+    p.on("error", (e) => {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+      finish(reject, new Error("ffmpeg spawn failed: " + e.message));
+    });
     p.on("close", (code) => {
       if (code === 0 && fs.existsSync(tmp)) {
         fs.renameSync(tmp, outFile);
-        resolve(outFile);
+        finish(resolve, outFile);
       } else {
         try { fs.unlinkSync(tmp); } catch (_) {}
-        reject(new Error("ffmpeg exit " + code + ": " + err.slice(0, 300)));
+        finish(reject, new Error("ffmpeg exit " + code + ": " + err.slice(0, 300)));
       }
     });
   });
@@ -345,9 +447,33 @@ function cacheFileFor(key) {
 }
 
 function announce(artist, album, file) {
+  try { const t = Date.now() / 1000; fs.utimesSync(file, t, t); } catch (_) {}
   const url = `http://localhost:${PORT}/art/${path.basename(file)}`;
   lastArtMessage = broadcastObj({ animatedArt: { artist, album, url } });
   console.log(`[art] → ${artist} — ${album}: ${url}`);
+}
+
+function pruneCache() {
+  let names;
+  try { names = fs.readdirSync(CACHE_DIR); } catch (_) { return; }
+  const items = [];
+  let total = 0;
+  for (const name of names) {
+    if (!/^[0-9a-f]{16}-\d+\.webm$/.test(name)) continue;
+    try {
+      const st = fs.statSync(path.join(CACHE_DIR, name));
+      items.push({ name, size: st.size, mtime: st.mtimeMs });
+      total += st.size;
+    } catch (_) {}
+  }
+  if (total <= CACHE_MAX_BYTES) return;
+  items.sort((a, b) => a.mtime - b.mtime);
+  let removed = 0;
+  for (const it of items) {
+    if (total <= CACHE_MAX_BYTES) break;
+    try { fs.unlinkSync(path.join(CACHE_DIR, it.name)); total -= it.size; removed++; } catch (_) {}
+  }
+  if (removed) console.log(`[art] cache pruned: removed ${removed}, now ${(total / 1048576).toFixed(0)} MB`);
 }
 
 async function onTrack(track) {
@@ -388,6 +514,7 @@ async function onTrack(track) {
     console.log(`[art] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (currentKey === key) announce(artist, album, file);
     else announce(artist, album, file);
+    pruneCache();
   } finally {
     inFlight = null;
   }
@@ -566,9 +693,17 @@ function startSmtcProducer() {
   }
 }
 
+pruneCache();
 startSmtcProducer();
 
 process.on("SIGINT", () => {
   console.log("\n[bridge] shutting down");
   wss.close(() => process.exit(0));
+});
+
+process.on("unhandledRejection", (e) => {
+  console.error("[bridge] unhandledRejection:", (e && e.stack) || e);
+});
+process.on("uncaughtException", (e) => {
+  console.error("[bridge] uncaughtException:", (e && e.stack) || e);
 });
