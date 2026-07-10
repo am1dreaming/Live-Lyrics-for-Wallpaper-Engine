@@ -15,7 +15,7 @@ No React, no bloat — just clean vanilla JS/CSS.
 <br>
 
 <br/>
-<img src="wallpaper/Recording 2026-07-05 031714.gif" width="65%" alt="Live Lyrics — live preview" />
+<img src="wallpaper/Recording 2026-07-11 004321.gif" width="65%" alt="Live Lyrics — live preview" />
 <br/>
 <sub>Word-by-word sync · accent color from the cover · live animated art — all in real time.</sub>
 <br/><br/>
