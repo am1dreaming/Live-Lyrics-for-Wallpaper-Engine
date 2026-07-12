@@ -49,16 +49,10 @@ $Bridge = Join-Path $Root "bridge"
 $ExtName = "spicetify-lyrics-bridge.js"
 $Port = 8973
 $ProjectId = "lyric-music-by-am1dreaming"
-# Steam Workshop page for the wallpaper - subscribing there is the recommended
-# install (one click, auto-updates). Put the published Workshop item id here.
 $WorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3759157919"
 $TaskName = "LyricMusicRelay"
 $Warnings = New-Object System.Collections.ArrayList
 
-# The relay must run from a PERMANENT location - never from the folder the
-# installer was launched from. The web installer extracts to %TEMP%\lmb-<guid>,
-# which Windows later purges; the relay was left pointing at deleted files, so
-# lyrics kept working (in memory) while live covers died (cache/ was gone).
 $InstallDir    = Join-Path $env:LOCALAPPDATA "LyricMusic"
 $BridgeInstall = Join-Path $InstallDir "bridge"
 
@@ -216,18 +210,10 @@ function Ensure-Ffmpeg {
 
 function Setup-Spicetify {
   Stage "Spicetify + lyrics extension"
-  # IMPORTANT: Spicetify must NOT run with administrator rights - doing so breaks
-  # Spotify's file permissions and 'spicetify apply' fails. This installer runs
-  # elevated (needed for Node/winget), so we do NOT drive Spicetify here. We drop
-  # the extension file in place and print the exact commands to finish in a
-  # normal, non-admin terminal.
   $extSrc = Join-Path $Bridge $ExtName
   if (-not (Test-Path -LiteralPath $extSrc)) { Warn "Missing $extSrc - run the installer from inside the release folder."; return }
 
   $sp = Resolve-Exe "spicetify" @("$env:LOCALAPPDATA\spicetify\spicetify.exe")
-
-  # Pre-place the extension into the user's Spicetify folder (best effort) so the
-  # user only has to enable + apply it.
   $extDir = Join-Path $env:APPDATA "spicetify\Extensions"
   try {
     New-Item -ItemType Directory -Force -Path $extDir | Out-Null
@@ -272,8 +258,6 @@ function Install-BridgeFiles {
   $dstFull = [IO.Path]::GetFullPath($BridgeInstall).TrimEnd('\')
   if ($srcFull -ieq $dstFull) { OK "Relay already at its install location."; return }
   New-Item -ItemType Directory -Force -Path $BridgeInstall | Out-Null
-  # Copy the relay to the stable location. Keep already-installed deps and the
-  # accumulated cover cache across re-installs (no /PURGE, skip those folders).
   robocopy $Bridge $BridgeInstall /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP /XD node_modules cache | Out-Null
   if ($LASTEXITCODE -ge 8) { Warn "robocopy hit locked files copying the relay - stop the relay / close the wallpaper and re-run." }
   if (Test-Path -LiteralPath (Join-Path $BridgeInstall "bridge-server.js")) { OK "Relay installed to $BridgeInstall." }
@@ -315,9 +299,6 @@ function Setup-Autostart {
     OK "Startup shortcut created."
   }
 
-  # Always (re)start from the freshly-installed permanent copy. Stop whatever is
-  # already on the port first - it may be an old instance running from a temp
-  # folder whose files Windows has since purged.
   $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
   if ($busy) {
     $busy | Select-Object -Expand OwningProcess -Unique | ForEach-Object {
@@ -340,8 +321,6 @@ function Install-Wallpaper {
   Note "Recommended - subscribe on the Steam Workshop (one click, auto-updates):"
   Note "  $WorkshopUrl"
   Write-Host ""
-
-  # Do NOT copy by default. Only import the local files if the user opts in.
   $copy = Ask-YN "Also copy the local wallpaper files into your Wallpaper Engine library?" $false
   if (-not $copy) {
     Note "Skipped local copy - use the Workshop link above (or import by hand)."
