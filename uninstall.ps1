@@ -28,6 +28,8 @@ $Bridge = Join-Path $Root "bridge"
 $ExtName = "spicetify-lyrics-bridge.js"
 $Port = 8973
 $TaskName = "LyricMusicRelay"
+$InstallDir    = Join-Path $env:LOCALAPPDATA "LyricMusic"
+$BridgeInstall = Join-Path $InstallDir "bridge"
 
 function Stage($m) {
     Write-Host "`n== $m ==" 
@@ -107,12 +109,17 @@ if ($sp) {
   if (Test-Path -LiteralPath $extFile) { Remove-Item -LiteralPath $extFile -Force; OK "Extension file removed." }
 } else { Note "Spicetify not found - skipping." }
 
-Stage "Cover cache"
-$cache = Join-Path $Bridge "cache"
-if (Test-Path -LiteralPath $cache) { 
-    Remove-Item -LiteralPath $cache -Recurse -Force; OK "Cache removed."
+Stage "Relay files & cover cache"
+if (Test-Path -LiteralPath $InstallDir) {
+    Remove-Item -LiteralPath $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $InstallDir)) { OK "Relay files and cache removed ($InstallDir)." }
+    else { Note "Some relay files were locked; delete $InstallDir manually if needed." }
 } else {
-    Note "No cache."
+    Note "No installed relay files."
+}
+# Legacy: cache/deps that older builds left next to the source folder.
+foreach ($legacy in @((Join-Path $Bridge "cache"), (Join-Path $Bridge "node_modules"))) {
+    if (Test-Path -LiteralPath $legacy) { Remove-Item -LiteralPath $legacy -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 Stage "Wallpaper Engine"

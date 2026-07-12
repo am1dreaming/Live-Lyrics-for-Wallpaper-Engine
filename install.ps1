@@ -49,8 +49,18 @@ $Bridge = Join-Path $Root "bridge"
 $ExtName = "spicetify-lyrics-bridge.js"
 $Port = 8973
 $ProjectId = "lyric-music-by-am1dreaming"
+# Steam Workshop page for the wallpaper - subscribing there is the recommended
+# install (one click, auto-updates). Put the published Workshop item id here.
+$WorkshopUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=3759157919"
 $TaskName = "LyricMusicRelay"
 $Warnings = New-Object System.Collections.ArrayList
+
+# The relay must run from a PERMANENT location - never from the folder the
+# installer was launched from. The web installer extracts to %TEMP%\lmb-<guid>,
+# which Windows later purges; the relay was left pointing at deleted files, so
+# lyrics kept working (in memory) while live covers died (cache/ was gone).
+$InstallDir    = Join-Path $env:LOCALAPPDATA "LyricMusic"
+$BridgeInstall = Join-Path $InstallDir "bridge"
 
 function Stage($m) { 
     Write-Host "`n== $m ==" 
@@ -122,26 +132,6 @@ function Get-WEProjects {
     if (Test-Path -LiteralPath $p) { 
         return $p
     }
-  }
-  return $null
-}
-
-function Get-SpotifyVersion {
-  $desktopExe = "$env:APPDATA\Spotify\Spotify.exe"
-  if (Test-Path -LiteralPath $desktopExe) {
-    try {
-      $vi = (Get-Item -LiteralPath $desktopExe).VersionInfo
-      $v = $vi.ProductVersion; if (-not $v) {
-          $v = $vi.FileVersion 
-      }
-      if ($v) { 
-          return $v.Trim()
-      }
-    } catch {}
-  }
-  $store = Get-AppxPackage -Name "SpotifyAB.SpotifyMusic" -ErrorAction SilentlyContinue
-  if ($store) { 
-      return "$($store.Version) (Microsoft Store)"
   }
   return $null
 }
@@ -224,72 +214,45 @@ function Ensure-Ffmpeg {
 }
 
 
-function Ensure-Spicetify {
-  Stage "Spicetify"
-  $sp = Resolve-Exe "spicetify" @("$env:LOCALAPPDATA\spicetify\spicetify.exe")
-  if ($sp) { OK "Spicetify already installed."; return $sp }
-  Note "Installing Spicetify CLI (no Marketplace)..."
-  Invoke-Expression (Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/spicetify/cli/main/install.ps1").Content
-  Refresh-Path
-  $sp = Resolve-Exe "spicetify" @("$env:LOCALAPPDATA\spicetify\spicetify.exe")
-  if (-not $sp) { throw "Spicetify did not install. See https://spicetify.app/docs/getting-started" }
-  OK "Spicetify installed."
-  return $sp
-}
-
-
-function Ensure-Compatible([string]$sp) {
-  Stage "Spicetify <-> Spotify compatibility"
-  $spotVer = Get-SpotifyVersion
-  if ($spotVer) { Note "Spotify version:   $spotVer" } else { Note "Spotify version:   unknown (Spotify not found yet)" }
-
-  $spVer = $null
-  try { $spVer = (& $sp -v) 2>$null } catch {}
-  if ($spVer) { Note "Spicetify version: $(($spVer | Out-String).Trim())" }
-
-  Note "Updating Spicetify to the latest release so it matches the newest Spotify..."
-  try {
-    & $sp upgrade | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-      $spVer2 = $null
-      try { $spVer2 = (& $sp -v) 2>$null } catch {}
-      if ($spVer2) { OK "Spicetify is up to date: $(($spVer2 | Out-String).Trim())" } else { OK "Spicetify upgrade finished." }
-    } else {
-      Warn "spicetify upgrade returned a non-zero code; continuing with the installed version."
-    }
-  } catch {
-    Warn "Could not run 'spicetify upgrade': $($_.Exception.Message). Continuing."
-  }
-}
-
-function Install-Extension([string]$sp) {
-  Stage "Extension"
+function Setup-Spicetify {
+  Stage "Spicetify + lyrics extension"
+  # IMPORTANT: Spicetify must NOT run with administrator rights - doing so breaks
+  # Spotify's file permissions and 'spicetify apply' fails. This installer runs
+  # elevated (needed for Node/winget), so we do NOT drive Spicetify here. We drop
+  # the extension file in place and print the exact commands to finish in a
+  # normal, non-admin terminal.
   $extSrc = Join-Path $Bridge $ExtName
-  if (-not (Test-Path -LiteralPath $extSrc)) { throw "Missing $extSrc - run the installer from inside the release folder." }
-  $userdata = $null
-  try {
-    # 'spicetify path userdata' can emit extra log/colored lines (esp. right
-    # after a failed upgrade); strip ANSI escapes and keep only a real drive
-    # path so Join-Path never chokes on illegal characters.
-    $userdata = @(& $sp path userdata 2>$null) |
-      ForEach-Object { ([string]$_) -replace "$([char]27)\[[0-9;]*[A-Za-z]", '' } |
-      Where-Object { $_ -match '[A-Za-z]:\\' } |
-      Select-Object -Last 1
-    if ($userdata) { $userdata = $userdata.Trim() }
-  } catch {}
-  if (-not $userdata) { $userdata = Join-Path $env:APPDATA 'spicetify' }
-  $extDir = Join-Path $userdata "Extensions"
-  New-Item -ItemType Directory -Force -Path $extDir | Out-Null
-  Copy-Item -LiteralPath $extSrc -Destination $extDir -Force
-  OK "Extension copied."
+  if (-not (Test-Path -LiteralPath $extSrc)) { Warn "Missing $extSrc - run the installer from inside the release folder."; return }
 
-  Stop-Process -Name "Spotify" -Force -ErrorAction SilentlyContinue
-  Start-Sleep 1
-  & $sp config extensions "$ExtName" | Out-Null
-  & $sp apply
-  if ($LASTEXITCODE -ne 0) { Note "First apply - creating backup..."; & $sp backup apply }
-  if ($LASTEXITCODE -eq 0) { OK "Spicetify applied." }
-  else { Warn "spicetify apply failed. Spotify may be newer than this Spicetify supports - run 'spicetify upgrade' then 'spicetify apply', or wait for the next Spicetify update." }
+  $sp = Resolve-Exe "spicetify" @("$env:LOCALAPPDATA\spicetify\spicetify.exe")
+
+  # Pre-place the extension into the user's Spicetify folder (best effort) so the
+  # user only has to enable + apply it.
+  $extDir = Join-Path $env:APPDATA "spicetify\Extensions"
+  try {
+    New-Item -ItemType Directory -Force -Path $extDir | Out-Null
+    Copy-Item -LiteralPath $extSrc -Destination $extDir -Force
+    OK "Extension file copied to $extDir."
+  } catch { Warn "Could not copy the extension automatically: $($_.Exception.Message)" }
+
+  Write-Host ""
+  if ($sp) {
+    Note "Spicetify is installed - but it must be applied WITHOUT admin rights."
+  } else {
+    Note "Spicetify is NOT installed. It refuses to run as admin, so this installer"
+    Note "cannot set it up for you. Install page: https://spicetify.app/docs/getting-started"
+  }
+  Write-Host ""
+  Note "Finish in a NORMAL (non-admin) PowerShell window - copy & paste:"
+  if (-not $sp) {
+    Note "  iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 | iex"
+  }
+  Note "  spicetify config extensions $ExtName"
+  Note "  spicetify apply"
+  Write-Host ""
+  Note "If 'apply' fails because Spotify is newer: run 'spicetify upgrade' then 'spicetify apply'."
+  Note "Lyrics start working right after a successful 'spicetify apply'."
+  [void]$Warnings.Add("Spicetify must be finished in a non-admin terminal (commands printed above).")
 }
 
 function Block-SpotifyUpdate {
@@ -303,11 +266,25 @@ function Block-SpotifyUpdate {
   } catch { Warn "Could not block Spotify updates: $($_.Exception.Message). If lyrics vanish after a Spotify update, re-run this installer." }
 }
 
+function Install-BridgeFiles {
+  Stage "Relay files"
+  $srcFull = [IO.Path]::GetFullPath($Bridge).TrimEnd('\')
+  $dstFull = [IO.Path]::GetFullPath($BridgeInstall).TrimEnd('\')
+  if ($srcFull -ieq $dstFull) { OK "Relay already at its install location."; return }
+  New-Item -ItemType Directory -Force -Path $BridgeInstall | Out-Null
+  # Copy the relay to the stable location. Keep already-installed deps and the
+  # accumulated cover cache across re-installs (no /PURGE, skip those folders).
+  robocopy $Bridge $BridgeInstall /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP /XD node_modules cache | Out-Null
+  if ($LASTEXITCODE -ge 8) { Warn "robocopy hit locked files copying the relay - stop the relay / close the wallpaper and re-run." }
+  if (Test-Path -LiteralPath (Join-Path $BridgeInstall "bridge-server.js")) { OK "Relay installed to $BridgeInstall." }
+  else { throw "Failed to copy the relay to $BridgeInstall." }
+}
+
 function Install-BridgeDeps {
   Stage "Relay dependencies"
   $npm = Resolve-Exe "npm" @("$env:ProgramFiles\nodejs\npm.cmd")
   if (-not $npm) { throw "npm not found after Node.js install." }
-  Push-Location -LiteralPath $Bridge
+  Push-Location -LiteralPath $BridgeInstall
   try {
     Note "npm install ws..."
     & $npm install ws --omit=dev --no-audit --no-fund --loglevel=error
@@ -317,12 +294,12 @@ function Install-BridgeDeps {
 
 function Setup-Autostart {
   Stage "Relay autostart (port $Port)"
-  $vbs = Join-Path $Bridge "start-bridge.vbs"
+  $vbs = Join-Path $BridgeInstall "start-bridge.vbs"
   if (-not (Test-Path -LiteralPath $vbs)) { Warn "start-bridge.vbs missing - autostart skipped."; return }
 
 
   try {
-    $act = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ('"' + $vbs + '"') -WorkingDirectory $Bridge
+    $act = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ('"' + $vbs + '"') -WorkingDirectory $BridgeInstall
     $trg = New-ScheduledTaskTrigger -AtLogOn
     $prn = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
     $set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
@@ -333,43 +310,60 @@ function Setup-Autostart {
     $lnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Lyric Music Relay.lnk"
     $wsh = New-Object -ComObject WScript.Shell
     $s = $wsh.CreateShortcut($lnk)
-    $s.TargetPath = "wscript.exe"; $s.Arguments = '"' + $vbs + '"'; $s.WorkingDirectory = $Bridge; $s.WindowStyle = 7
+    $s.TargetPath = "wscript.exe"; $s.Arguments = '"' + $vbs + '"'; $s.WorkingDirectory = $BridgeInstall; $s.WindowStyle = 7
     $s.Save()
     OK "Startup shortcut created."
   }
 
+  # Always (re)start from the freshly-installed permanent copy. Stop whatever is
+  # already on the port first - it may be an old instance running from a temp
+  # folder whose files Windows has since purged.
   $busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
   if ($busy) {
-      OK "Relay already listening on port $Port."
-  }
-  else {
-    Start-Process -FilePath "wscript.exe" -ArgumentList @($vbs) -WorkingDirectory $Bridge
-    Start-Sleep 2
-    if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { OK "Relay started on port $Port." }
-    else { 
-        Warn "Relay did not confirm start - it should come up on next login."
+    $busy | Select-Object -Expand OwningProcess -Unique | ForEach-Object {
+      try { Stop-Process -Id $_ -Force -ErrorAction Stop; Note "Stopped a previous relay (PID $_)." } catch {}
     }
+    Start-Sleep 1
+  }
+  Start-Process -FilePath "wscript.exe" -ArgumentList @($vbs) -WorkingDirectory $BridgeInstall
+  Start-Sleep 2
+  if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) { OK "Relay started on port $Port." }
+  else {
+      Warn "Relay did not confirm start - it should come up on next login."
   }
 }
 
 function Install-Wallpaper {
   Stage "Wallpaper Engine"
   if (-not (Test-Path -LiteralPath (Join-Path $Wallpaper "index.html"))) { throw "wallpaper folder not found next to the installer." }
+
+  Note "Recommended - subscribe on the Steam Workshop (one click, auto-updates):"
+  Note "  $WorkshopUrl"
+  Write-Host ""
+
+  # Do NOT copy by default. Only import the local files if the user opts in.
+  $copy = Ask-YN "Also copy the local wallpaper files into your Wallpaper Engine library?" $false
+  if (-not $copy) {
+    Note "Skipped local copy - use the Workshop link above (or import by hand)."
+    Show-ManualWallpaper
+    return
+  }
+
   $projects = Get-WEProjects
-  if (-not $projects) { 
-      Warn "Wallpaper Engine not found. Import manually: WE -> Open wallpaper -> $Wallpaper\project.json"; Show-ManualWallpaper; return 
+  if (-not $projects) {
+      Warn "Wallpaper Engine not found. Import manually: WE -> Open wallpaper -> $Wallpaper\project.json"; Show-ManualWallpaper; return
   }
   $dst = Join-Path $projects $ProjectId
   Note "Copying to $dst ..."
   robocopy $Wallpaper $dst /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP /XD cache | Out-Null
-  if ($LASTEXITCODE -ge 8) { 
-      Warn "robocopy: some files were locked (close/switch the wallpaper in WE and re-run)." 
+  if ($LASTEXITCODE -ge 8) {
+      Warn "robocopy: some files were locked (close/switch the wallpaper in WE and re-run)."
   }
-  if (Test-Path -LiteralPath (Join-Path $dst "project.json")) { 
-      OK "Wallpaper installed to the WE library as '$ProjectId'."
+  if (Test-Path -LiteralPath (Join-Path $dst "project.json")) {
+      OK "Wallpaper copied to the WE library as '$ProjectId'."
   }
-  else { 
-      Warn "Copy not confirmed - check $dst." 
+  else {
+      Warn "Copy not confirmed - check $dst."
   }
 }
 
@@ -413,7 +407,7 @@ function Apply-Preset([string]$p) {
       $script:doUpdateBlock = Ask-YN "Block Spotify auto-update (keeps Spicetify alive)?" $true
       $script:doBridge = Ask-YN "Install relay dependencies (npm i ws)?" $true
       $script:doAutostart = Ask-YN "Start the relay now and at every login?" $true
-      $script:doWallpaper = Ask-YN "Auto-import the wallpaper into Wallpaper Engine?" $true
+      $script:doWallpaper = Ask-YN "Set up the wallpaper (show Workshop link + optional local copy)?" $true
     }
   }
 }
@@ -476,11 +470,11 @@ Write-Host "`nPlan:"
 Note ("Spotify ............ " + $(if ($doSpotify) { "yes" } else { "skip" }))
 Note ("Node.js ............ " + $(if ($doNode) { "yes" } else { "skip" }))
 Note ("ffmpeg ............. " + $(if ($doFfmpeg) { "yes" } else { "skip" }))
-Note ("Spicetify + ext .... " + $(if ($doSpicetify) { "yes" } else { "skip" }))
+Note ("Spicetify + ext .... " + $(if ($doSpicetify) { "file + manual steps" } else { "skip" }))
 Note ("Block auto-update .. " + $(if ($doUpdateBlock) { "yes" } else { "skip" }))
 Note ("Relay deps ......... " + $(if ($doBridge) { "yes" } else { "skip" }))
 Note ("Relay autostart .... " + $(if ($doAutostart) { "yes" } else { "skip" }))
-Note ("Wallpaper import ... " + $(if ($doWallpaper) { "yes" } else { "manual" }))
+Note ("Wallpaper .......... " + $(if ($doWallpaper) { "Workshop link + optional copy" } else { "link only" }))
 
 try {
   if ($doSpotify) { 
@@ -493,22 +487,26 @@ try {
       Ensure-Ffmpeg 
   }
   if ($doSpicetify) {
-    $sp = Ensure-Spicetify
-    Ensure-Compatible $sp
-    Install-Extension $sp
+    Setup-Spicetify
   }
   if ($doUpdateBlock) { 
       Block-SpotifyUpdate 
   }
-  if ($doBridge) { 
-      Install-BridgeDeps 
+  if ($doBridge -or $doAutostart) {
+      Install-BridgeFiles
+  }
+  if ($doBridge) {
+      Install-BridgeDeps
   }
   if ($doAutostart) {
-      Setup-Autostart 
+      Setup-Autostart
   }
-  if ($doWallpaper) { 
-      Install-Wallpaper 
-  } else { 
+  if ($doWallpaper) {
+      Install-Wallpaper
+  } else {
+      Stage "Wallpaper Engine"
+      Note "Wallpaper step skipped. Subscribe on the Steam Workshop:"
+      Note "  $WorkshopUrl"
       Show-ManualWallpaper
   }
 }
@@ -529,9 +527,11 @@ if ($Warnings.Count) {
 Write-Host @"
 
 Next:
-  1. Open Wallpaper Engine and pick "lyric music by am1dreaming" from the library.
-  2. Play any track in Spotify - lyrics appear automatically.
-  3. The relay is registered to start at logon. Without Spotify you get a demo track.
+  1. Finish Spicetify in a NON-admin PowerShell (commands are printed above) - lyrics need it.
+  2. Add the wallpaper: subscribe on the Steam Workshop, or use the local copy if you chose it.
+       $WorkshopUrl
+  3. In Wallpaper Engine, pick "lyric music by am1dreaming" and play a track in Spotify.
+     The relay auto-starts at logon; with no Spotify you get a demo track.
 
 Uninstall: double-click Uninstall.bat.
 create by MinenkoY
