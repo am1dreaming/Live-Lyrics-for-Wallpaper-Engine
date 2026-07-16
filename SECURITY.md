@@ -19,7 +19,6 @@ installer to get the current version — completed steps are skipped.
 
 - Preferred: [**GitHub → Security → Report a vulnerability**](https://github.com/am1dreaming/Live-Lyrics-for-Wallpaper-Engine/security/advisories/new)
   (private advisory).
-- Or email: **yriknm86@gmail.com** with `[SECURITY]` in the subject.
 
 Include what you can: affected file (e.g. `bridge/bridge-server.js`,
 `install.ps1`), reproduction steps or PoC, impact, and your OS / Spotify /
