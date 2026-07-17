@@ -2,6 +2,7 @@
 const WebSocket = require("ws");
 const http = require("http");
 const https = require("https");
+const dns = require("dns");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -23,10 +24,9 @@ if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 
-function isBlockedProxyHost(host) {
-  host = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
-  if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
-  const m4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+function isPrivateOrReservedIp(ip) {
+  ip = String(ip || "").toLowerCase().replace(/^\[|\]$/g, "");
+  const m4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
   if (m4) {
     if (m4.slice(1).some((o) => +o > 255)) return true;
     const a = +m4[1], b = +m4[2];
@@ -34,14 +34,39 @@ function isBlockedProxyHost(host) {
       (a === 169 && b === 254) || (a === 192 && b === 168) ||
       (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
   }
-  if (host.includes(":"))
-    return host === "::1" || host === "::" || host.startsWith("fe80:") ||
-      host.startsWith("fc") || host.startsWith("fd");
+  if (ip.includes(":")) {
+    const v4 = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(ip);
+    if (v4) return isPrivateOrReservedIp(v4[1]);
+    return ip === "::1" || ip === "::" || ip.startsWith("fe80:") ||
+      ip.startsWith("fc") || ip.startsWith("fd");
+  }
+  return false;
+}
+
+function isBlockedProxyHost(host) {
+  host = String(host || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) || host.includes(":"))
+    return isPrivateOrReservedIp(host);
   if (!/[a-z]/.test(host)) return true;
   if (!/^[a-z0-9.-]+$/.test(host)) return true;
   if (/(^|\.)0x[0-9a-f]+(\.|$)/.test(host)) return true;
   return false;
 }
+
+// Anti DNS-rebinding: resolve ALL A/AAAA records up front, reject if any one
+// is private/reserved, and return the first allowed address so the actual
+// socket can be pinned to it (instead of letting http.get re-resolve later).
+async function resolveAndValidate(hostname) {
+  const addrs = await dns.promises.lookup(hostname, { all: true, verbatim: true });
+  if (!addrs || !addrs.length) throw new Error("no dns result: " + hostname);
+  for (const a of addrs) {
+    if (isPrivateOrReservedIp(a.address)) throw new Error("blocked resolved ip: " + a.address);
+  }
+  return addrs[0];
+}
+
+const MAX_PROXY_BYTES = 25 * 1024 * 1024;
 
 const server = http.createServer((req, res) => {
 
@@ -74,22 +99,40 @@ const server = http.createServer((req, res) => {
       let phost = "";
       try { phost = new URL(url).hostname; } catch (_) {}
       if (isBlockedProxyHost(phost)) { if (!res.headersSent) { res.writeHead(403); res.end("blocked host"); } return; }
-      const mod = url.startsWith("https:") ? https : http;
-      const up = mod.get(url, { headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*" } }, (r) => {
-        if (r.statusCode >= 301 && r.statusCode <= 308 && r.headers.location && redirects > 0) {
-          r.resume();
-          return proxyImage(new URL(r.headers.location, url).href, redirects - 1);
-        }
-        if (r.statusCode !== 200) { r.resume(); res.writeHead(502); res.end("upstream"); return; }
-        res.writeHead(200, {
-          "Content-Type": r.headers["content-type"] || "image/jpeg",
-          "Cache-Control": "public, max-age=86400",
-          "Access-Control-Allow-Origin": "*",
+      resolveAndValidate(phost).then((addr) => {
+        const mod = url.startsWith("https:") ? https : http;
+        const up = mod.get(url, {
+          headers: { "User-Agent": "Mozilla/5.0", Accept: "image/*" },
+          // pin the socket to the pre-validated IP; Host header / TLS SNI
+          // still come from the original hostname in `url`
+          lookup: (h, opts, cb) => {
+            if (opts && opts.all) return cb(null, [{ address: addr.address, family: addr.family }]);
+            cb(null, addr.address, addr.family);
+          },
+        }, (r) => {
+          if (r.statusCode >= 301 && r.statusCode <= 308 && r.headers.location && redirects > 0) {
+            r.resume();
+            return proxyImage(new URL(r.headers.location, url).href, redirects - 1);
+          }
+          if (r.statusCode !== 200) { r.resume(); res.writeHead(502); res.end("upstream"); return; }
+          if (Number(r.headers["content-length"]) > MAX_PROXY_BYTES) {
+            r.resume(); up.destroy(); res.writeHead(502); res.end("too large"); return;
+          }
+          res.writeHead(200, {
+            "Content-Type": r.headers["content-type"] || "image/jpeg",
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+          });
+          let sent = 0;
+          r.on("data", (c) => {
+            sent += c.length;
+            if (sent > MAX_PROXY_BYTES) { up.destroy(); try { res.destroy(); } catch (_) {} }
+          });
+          r.pipe(res);
         });
-        r.pipe(res);
-      });
-      up.on("error", () => { if (!res.headersSent) { res.writeHead(502); res.end("proxy error"); } });
-      up.setTimeout(15000, () => up.destroy());
+        up.on("error", () => { if (!res.headersSent) { res.writeHead(502); res.end("proxy error"); } });
+        up.setTimeout(15000, () => up.destroy());
+      }).catch(() => { if (!res.headersSent) { res.writeHead(403); res.end("blocked host"); } });
     };
     proxyImage(target, 5);
     return;
@@ -106,6 +149,7 @@ server.listen(PORT, HOST, () => {
 
 let lastFullMessage = null;
 let lastArtMessage = null;
+let lastCanvasMessage = null;
 
 function broadcastObj(obj) {
   const str = JSON.stringify(obj);
@@ -121,6 +165,7 @@ wss.on("connection", (ws, req) => {
 
   if (lastFullMessage && ws.readyState === WebSocket.OPEN) ws.send(lastFullMessage);
   if (lastArtMessage && ws.readyState === WebSocket.OPEN) ws.send(lastArtMessage);
+  if (lastCanvasMessage && ws.readyState === WebSocket.OPEN) ws.send(lastCanvasMessage);
 
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
@@ -136,6 +181,12 @@ wss.on("connection", (ws, req) => {
 
         onTrack(obj.track).catch((e) =>
           console.warn("[art] pipeline error:", e && e.message ? e.message : e));
+      }
+
+      if (obj && Object.prototype.hasOwnProperty.call(obj, "canvasUrl")) {
+        onCanvas(obj).catch((e) =>
+          console.warn("[canvas] pipeline error:", e && e.message ? e.message : e));
+        return;
       }
 
       if (obj && obj.artConfig && obj.artConfig.height) {
@@ -517,6 +568,103 @@ async function onTrack(track) {
     pruneCache();
   } finally {
     inFlight = null;
+  }
+}
+
+// ---- Spotify Canvas: filter junk (static "ad" Canvas) + transcode to webm ----
+let canvasInFlight = null;
+let canvasKey = null;
+const CANVAS_FREEZE_RATIO = Number(process.env.BRIDGE_CANVAS_FREEZE) || 0.85;
+
+function canvasCacheFile(trackId) {
+  const hash = crypto.createHash("sha1").update("canvas:" + trackId).digest("hex").slice(0, 16);
+  return path.join(CACHE_DIR, hash + "-" + targetHeight + ".webm");
+}
+
+function downloadFile(url, dest, redirects) {
+  redirects = redirects == null ? 5 : redirects;
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith("http:") ? http : https;
+    const r = mod.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+      if (res.statusCode >= 301 && res.statusCode <= 308 && res.headers.location && redirects > 0) {
+        res.resume();
+        return resolve(downloadFile(new URL(res.headers.location, url).href, dest, redirects - 1));
+      }
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error("canvas download HTTP " + res.statusCode)); }
+      const out = fs.createWriteStream(dest);
+      res.pipe(out);
+      out.on("finish", () => out.close(() => resolve(dest)));
+      out.on("error", reject);
+    });
+    r.on("error", reject);
+    r.setTimeout(20000, () => r.destroy(new Error("canvas download timeout")));
+  });
+}
+
+// Fraction of the clip that is "frozen" (no motion) — static ad Canvas ≈ 1.0.
+function freezeRatio(file) {
+  return new Promise((resolve) => {
+    const args = ["-hide_banner", "-i", file, "-vf", "scale=64:-2,freezedetect=n=-55dB:d=0.3", "-map", "0:v", "-f", "null", "-"];
+    const p = spawn(FFMPEG, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    p.stderr.on("data", (d) => (err += d));
+    p.on("error", () => resolve({ ratio: 0, dur: 0 }));
+    p.on("close", () => {
+      let frozen = 0, m;
+      const re = /freeze_duration:\s*([0-9.]+)/g;
+      while ((m = re.exec(err))) frozen += parseFloat(m[1]);
+      const dm = /Duration:\s*(\d+):(\d+):([0-9.]+)/.exec(err);
+      const dur = dm ? (+dm[1]) * 3600 + (+dm[2]) * 60 + parseFloat(dm[3]) : 0;
+      resolve({ ratio: dur > 0 ? Math.min(1, frozen / dur) : 0, dur });
+    });
+  });
+}
+
+function announceCanvas(trackId, file) {
+  try { const t = Date.now() / 1000; fs.utimesSync(file, t, t); } catch (_) {}
+  const url = `http://localhost:${PORT}/art/${path.basename(file)}`;
+  lastCanvasMessage = broadcastObj({ canvasVideo: { trackId, url } });
+  console.log(`[canvas] → ${trackId}: ${url}`);
+}
+
+function clearCanvas(trackId) {
+  lastCanvasMessage = broadcastObj({ canvasVideo: { trackId, url: null } });
+}
+
+async function onCanvas(obj) {
+  const trackId = String(obj.trackId || "");
+  const url = obj.canvasUrl || "";
+  canvasKey = trackId;
+  if (!url) { clearCanvas(trackId); return; }       // no/image Canvas → static cover
+  if (!FFMPEG) return;
+
+  const file = canvasCacheFile(trackId);
+  if (fs.existsSync(file)) { announceCanvas(trackId, file); return; }
+  if (canvasInFlight === trackId) return;
+  while (canvasInFlight) await new Promise((r) => setTimeout(r, 300));
+  if (canvasKey !== trackId) return;
+  if (fs.existsSync(file)) { announceCanvas(trackId, file); return; }
+
+  canvasInFlight = trackId;
+  const tmp = file + ".src.mp4";
+  try {
+    await downloadFile(url, tmp);
+    const fr = await freezeRatio(tmp);
+    console.log(`[canvas] ${trackId}: frozen ${(fr.ratio * 100).toFixed(0)}% of ${fr.dur.toFixed(1)}s`);
+    if (fr.ratio >= CANVAS_FREEZE_RATIO) {
+      console.log(`[canvas] static/ad junk — skipped: ${trackId}`);
+      clearCanvas(trackId);
+      return;
+    }
+    await transcode(tmp, file);
+    announceCanvas(trackId, file);
+    pruneCache();
+  } catch (e) {
+    console.warn("[canvas] failed:", e && e.message ? e.message : e);
+    clearCanvas(trackId);
+  } finally {
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    canvasInFlight = null;
   }
 }
 
