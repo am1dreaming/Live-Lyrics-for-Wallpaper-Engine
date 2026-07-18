@@ -43,7 +43,7 @@ iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpape
 <td width="50%" valign="top">
 
 **🎤 Lyrics that feel alive**
-- Word-by-word sync, Apple-Music letter emphasis (scale · lift · glow, 3 springs per letter)
+- Word-by-word sync (scale · lift · glow, 3 springs per letter)
 - Spring-based auto-scroll that centers the active line — no overshoot
 - Interlude dots during instrumental breaks
 - Toggle down to a simple highlight for a calmer look
