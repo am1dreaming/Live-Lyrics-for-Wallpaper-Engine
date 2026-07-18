@@ -251,8 +251,8 @@ live-lyrics/
 
 ## 📦 Requirements
 
-- Windows 10 / 11 and an internet connection during install.
-- **Winget** (ships with Win10 21H2+/Win11). No winget? Install Node.js from [nodejs.org](https://nodejs.org) and the installer finishes the rest. 
+- Windows 10/11 and an internet connection during install.
+- **Winget** (ships with Win10 21H2+/Win11). Install Node.js from [nodejs.org](https://nodejs.org) and the installer finishes the rest. 
 
 ---
 
