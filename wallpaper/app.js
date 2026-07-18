@@ -78,8 +78,6 @@
   let lastRealMessage = Date.now();
   const appStart = Date.now();
 
-  // lyrics source: "auto" (relay if running, else Windows Media), "windows"
-  // (built-in only), "relay" (Spicetify bridge only). Default set from WE props.
   let lyricsSource = "auto";
   let lastBridgeMsg = 0;
 
@@ -154,8 +152,6 @@
     return connected && (Date.now() - lastBridgeMsg) < 10000;
   }
 
-  // Built-in path (WE native media + LRCLIB) fed by media-native.js. Applied only
-  // when the relay is not the active source, so the Spicetify bridge always wins.
   function onNativeMessage(msg) {
     if (lyricsSource === "relay") return;
     if (lyricsSource === "auto" && bridgeActive()) return;
@@ -353,10 +349,10 @@
   }
   function applyBgFit(mode) {
     const map = {
-      cover: ["cover",     "no-repeat", "cover"],
-      contain:["contain",   "no-repeat", "contain"],
+      cover: ["cover", "no-repeat", "cover"],
+      contain:["contain", "no-repeat", "contain"],
       fill: ["100% 100%", "no-repeat", "fill"],
-      tile: ["auto",      "repeat",    "cover"],
+      tile: ["auto", "repeat", "cover"],
     };
     const m = map[mode] || map.cover;
     const s = document.documentElement.style;
