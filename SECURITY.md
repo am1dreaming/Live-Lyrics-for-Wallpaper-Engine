@@ -37,7 +37,7 @@ prioritized, but there is no formal SLA and no bug bounty.
 
 ## Scope
 
-In scope — vulnerabilities in code shipped by this repository:
+In scope - vulnerabilities in code shipped by this repository:
 
 - **Installer / uninstaller** (`install.ps1`, `install-web.ps1`, `Install.bat`,
   `uninstall.ps1`) — they run elevated, so anything like command injection,
