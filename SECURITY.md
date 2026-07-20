@@ -21,7 +21,7 @@ installer to get the current version — completed steps are skipped.
   (private advisory).
 
 Include what you can: affected file (e.g. `bridge/bridge-server.js`,
-`install.ps1`), reproduction steps or PoC, impact, and your OS/Spotify/
+`install.ps1`), reproduction steps or PoC, impact, and your OS / Spotify /
 Spicetify versions if relevant.
 
 What to expect:
