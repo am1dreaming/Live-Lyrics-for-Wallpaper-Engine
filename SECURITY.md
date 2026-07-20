@@ -66,5 +66,5 @@ Out of scope:
 - The relay is loopback-only by default; keep it that way unless you know why
   you need otherwise.
 - The one-line install pipes a script from GitHub into PowerShell
-  (`iwr | iex`). If that concerns you, download the repo and inspect
+  (`iwr / iex`). If that concerns you, download the repo and inspect
   `install.ps1` before running `Install.bat` instead.
