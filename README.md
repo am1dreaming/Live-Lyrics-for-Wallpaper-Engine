@@ -43,7 +43,7 @@ iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpape
 <td width="50%" valign="top">
 
 **🎤 Lyrics that feel alive**
-- Word-by-word sync, Apple-Music letter emphasis (scale · lift · glow, 3 springs per letter)
+- Word-by-word sync (scale · lift · glow, 3 springs per letter)
 - Spring-based auto-scroll that centers the active line — no overshoot
 - Interlude dots during instrumental breaks
 - Toggle down to a simple highlight for a calmer look
@@ -140,7 +140,7 @@ For the web command, pass them via `$env:LMB_PRESET` and `$env:LMB_ARGS` before 
 3. Pick `wallpaper/project.json` (or `wallpaper/index.html`).
 4. Or copy the whole `wallpaper` folder into
    `…\steamapps\common\wallpaper_engine\projects\myprojects\live-lyrics\`.
-5. Select **“Live Lyrics by am1dreaming”** in your library.
+5. Select **“Live Lyrics by am1dreaming/github”** in your library.
 
 </details>
 
