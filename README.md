@@ -140,7 +140,7 @@ For the web command, pass them via `$env:LMB_PRESET` and `$env:LMB_ARGS` before 
 3. Pick `wallpaper/project.json` (or `wallpaper/index.html`).
 4. Or copy the whole `wallpaper` folder into
    `…\steamapps\common\wallpaper_engine\projects\myprojects\live-lyrics\`.
-5. Select **“Live Lyrics by am1dreaming”** in your library.
+5. Select **“Live Lyrics by am1dreaming/github”** in your library.
 
 </details>
 
