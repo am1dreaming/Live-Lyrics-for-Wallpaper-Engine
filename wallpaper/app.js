@@ -140,7 +140,7 @@
     let msg;
     try { msg = JSON.parse(raw); } catch (_) { return; }
     lastBridgeMsg = Date.now();
-    if (lyricsSource === "windows") return; // Windows-Media mode ignores the relay
+    if (lyricsSource === "windows") return;
     lastRealMessage = Date.now();
     everReceived = true;
     usingMock = false;
