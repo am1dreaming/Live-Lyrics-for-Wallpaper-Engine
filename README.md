@@ -152,8 +152,8 @@ A Spicetify extension can't open a server (it lives inside Spotify's renderer), 
 
 ```
 ┌──────────────────────┐   ws client   ┌─────────────────┐   ws relay   ┌────────────────────┐
-│  Spotify (Spicetify)  │ ────────────▶ │  bridge-server  │ ───────────▶ │  Wallpaper (WE)     │
-│  lyrics-bridge.js     │  :8973        │  Node + ws      │  :8973       │  app.js (ws client) │
+│  Spotify (Spicetify)  │ ────────────▶│  bridge-server │ ───────────▶│  Wallpaper (WE)    │
+│  lyrics-bridge.js     │  :8973       │  Node + ws     │  :8973       │  app.js (ws client)│
 └──────────────────────┘               └─────────────────┘              └────────────────────┘
 ```
 
