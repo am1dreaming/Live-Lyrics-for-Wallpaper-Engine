@@ -1,4 +1,3 @@
-// MinenkoY
 (function () {
   "use strict";
 
