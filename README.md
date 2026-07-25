@@ -5,7 +5,7 @@
 ### Your Spotify song, synced word-by-word, living on your desktop.
 
 Karaoke lyrics · cover-art backgrounds · audio-reactive · ultrawide-ready.
-No React, no bloat — just clean vanilla JS/CSS.
+No React, no bloat - just clean vanilla JS/CSS.
 <br/>
 
 <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?logo=windows&logoColor=white  " />
