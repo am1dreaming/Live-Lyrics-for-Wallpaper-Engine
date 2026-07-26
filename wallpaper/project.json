@@ -475,6 +475,14 @@
           {
             "label": "Custom video",
             "value": "video"
+          },
+          {
+            "label": "Album cover (live if available)",
+            "value": "livecover"
+          },
+          {
+            "label": "Spotify Canvas (filtered)",
+            "value": "canvas"
           }
         ]
       },

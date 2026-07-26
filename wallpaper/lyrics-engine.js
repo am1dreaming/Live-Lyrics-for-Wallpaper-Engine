@@ -8,27 +8,32 @@ window.LyricsEngine = (function () {
   let type = "none";
   let activeIndex = -1;
   let snapNext = false;
-  let emphasisMode = "spicy";
+  let emphasisMode = "dynamic";
   let emphStrength = 1;
   let glowStrength = 1;
   let interludesOn = true;
   const INTERLUDE_MIN_GAP = 2500;
 
-  const SCALE_LONG = [[0, 0.95], [0.7, 1.175], [1, 1]];
-  const SCALE_SHORT = [[0, 0.95], [0.7, 1.07],  [1, 1]];
-  const YOFF_LONG = [[0, 0.01786], [0.9, -0.01786], [1, 0]];
-  const YOFF_SHORT = [[0, 0.01],    [0.9, -0.01613], [1, 0]];
-  const GLOW = [[0, 0], [0.15, 1], [0.6, 1], [1, 0]];
-  const LONGER_THAN_MS = 1000;
-  const GLOW_OPACITY_MULT = 1.85;
-  const DIST_SCALE_EXP = 2.8;
-  const DIST_GLOW_K = 0.9;
+  // Emphasis curves as [progress, value] keyframes, smoothstep-interpolated.
+  // WIDE = syllables held long enough to breathe, TIGHT = short ones.
+  const LIFT_WIDE   = [[0, 0.95], [0.7, 1.18], [1, 1]];
+  const LIFT_TIGHT  = [[0, 0.95], [0.7, 1.07], [1, 1]];
+  const RISE_WIDE   = [[0, 0.018], [0.9, -0.018], [1, 0]];
+  const RISE_TIGHT  = [[0, 0.010], [0.9, -0.016], [1, 0]];
+  const FLARE       = [[0, 0], [0.15, 1], [0.6, 1], [1, 0]];
+  const WIDE_MIN_MS = 1000;
 
-  const SP_SCALE = [2.3, 0.70];
-  const SP_YOFF = [2.6, 0.55];
-  const SP_GLOW = [1.6, 0.56];
+  // How the effect decays away from the letter currently being sung.
+  const FALLOFF_LIFT_EXP = 2.8;
+  const FALLOFF_FLARE_K = 0.9;
+  const FLARE_ALPHA_GAIN = 1.85;
 
-  function sampleSpline(pts, t) {
+  // Spring tuning: [frequency, dampingRatio]
+  const SPRING_LIFT  = [2.3, 0.70];
+  const SPRING_RISE  = [2.6, 0.55];
+  const SPRING_FLARE = [1.6, 0.56];
+
+  function sampleCurve(pts, t) {
     if (t <= pts[0][0]) return pts[0][1];
     const last = pts[pts.length - 1];
     if (t >= last[0]) return last[1];
@@ -43,23 +48,28 @@ window.LyricsEngine = (function () {
     return last[1];
   }
 
-  function getElementState(currentTime, startTime, endTime) {
-    if (currentTime < startTime) return "NotSung";
-    if (currentTime >= endTime) return "Sung";
-    return "Active";
+  const PHASE_IDLE = "is-idle";
+  const PHASE_LIVE = "is-live";
+  const PHASE_DONE = "is-done";
+
+  function phaseAt(currentTime, startTime, endTime) {
+    if (currentTime < startTime) return PHASE_IDLE;
+    if (currentTime >= endTime) return PHASE_DONE;
+    return PHASE_LIVE;
   }
 
-  function gradPos(currentTime, startTime, endTime) {
-    let p = (currentTime - startTime) / (endTime - startTime);
-    if (!isFinite(p) || p < 0) p = 0; else if (p > 1) p = 1;
-    return -20 + p * 120;
+  // 0 = nothing sung yet, 1 = fully sung. The CSS turns this into gradient stops.
+  function wipeProgress(currentTime, startTime, endTime) {
+    const p = (currentTime - startTime) / (endTime - startTime);
+    if (!isFinite(p) || p < 0) return 0;
+    return p > 1 ? 1 : p;
   }
 
-  function setPos(el, percent) {
-    const v = percent.toFixed(1) + "%";
-    if (el.__gp === v) return;
-    el.__gp = v;
-    el.style.setProperty("--gradient-position", v);
+  function setWipe(el, progress) {
+    const v = progress.toFixed(3);
+    if (el.__wipe === v) return;
+    el.__wipe = v;
+    el.style.setProperty("--wipe", v);
   }
 
   function blurForDistance(d) {
@@ -86,9 +96,9 @@ window.LyricsEngine = (function () {
       lt.textContent = ch;
       letters.push({
         el: lt,
-        scaleSpring: new Spring(SP_SCALE[0], SP_SCALE[1], 1),
-        ySpring: new Spring(SP_YOFF[0], SP_YOFF[1], 0),
-        glowSpring: new Spring(SP_GLOW[0], SP_GLOW[1], 0),
+        scaleSpring: new Spring(SPRING_LIFT[0], SPRING_LIFT[1], 1),
+        ySpring: new Spring(SPRING_RISE[0], SPRING_RISE[1], 0),
+        glowSpring: new Spring(SPRING_FLARE[0], SPRING_FLARE[1], 0),
         last: null,
       });
       wg.appendChild(lt);
@@ -106,7 +116,7 @@ window.LyricsEngine = (function () {
   function pushInterlude(startMs, endMs, frag) {
     const el = document.createElement("div");
     el.className = "interlude";
-    el.style.setProperty("--BlurAmount", "0px");
+    el.style.setProperty("--depth-blur", "0px");
     const dots = [];
     for (let i = 0; i < 3; i++) {
       const d = document.createElement("span");
@@ -134,8 +144,8 @@ window.LyricsEngine = (function () {
       prevEnd = l.endMs;
 
       const el = document.createElement("div");
-      el.className = "line NotSung" + (l.isBackground ? " bg-line" : "");
-      el.style.setProperty("--BlurAmount", "0px");
+      el.className = "line " + PHASE_IDLE + (l.isBackground ? " bg-line" : "");
+      el.style.setProperty("--depth-blur", "0px");
 
       const rec = {
         el, startMs: l.startMs, endMs: l.endMs,
@@ -179,27 +189,27 @@ window.LyricsEngine = (function () {
 
     if (type === "static") {
       lines.forEach((r) => {
-        r.el.classList.remove("NotSung");
-        r.el.classList.add("Active");
-        setPos(r.el, 100);
+        r.el.classList.remove(PHASE_IDLE);
+        r.el.classList.add(PHASE_LIVE);
+        setWipe(r.el, 1);
       });
       return;
     }
     snapNext = true;
   }
 
-  function setLineState(rec, state) {
-    if (rec.state === state) return false;
-    rec.state = state;
-    rec.el.classList.remove("Active", "Sung", "NotSung");
-    rec.el.classList.add(state);
+  function setLinePhase(rec, phase) {
+    if (rec.state === phase) return false;
+    rec.state = phase;
+    rec.el.classList.remove(PHASE_IDLE, PHASE_LIVE, PHASE_DONE);
+    rec.el.classList.add(phase);
     return true;
   }
 
   function applyDepth(active) {
     for (let i = 0; i < lines.length; i++) {
       const d = active < 0 ? 99 : Math.abs(i - active);
-      lines[i].el.style.setProperty("--BlurAmount", blurForDistance(d) + "px");
+      lines[i].el.style.setProperty("--depth-blur", blurForDistance(d) + "px");
     }
   }
 
@@ -208,8 +218,8 @@ window.LyricsEngine = (function () {
     lt.ySpring.reset(0);
     lt.glowSpring.reset(0);
     lt.el.style.transform = "";
-    lt.el.style.removeProperty("--ts-blur");
-    lt.el.style.removeProperty("--ts-op");
+    lt.el.style.removeProperty("--flare-blur");
+    lt.el.style.removeProperty("--flare-alpha");
     lt.last = null;
   }
 
@@ -218,22 +228,22 @@ window.LyricsEngine = (function () {
     for (const lt of rec.allLetters) clearLetter(lt);
   }
 
-  function emphasizeSegment(letters, start, end, currentTime, dt, long) {
+  function emphasizeSegment(letters, start, end, currentTime, dt, wide) {
     const dur = end - start || 1;
     let p = (currentTime - start) / dur;
     if (p < 0) p = 0; else if (p > 1) p = 1;
 
-    const active = currentTime >= start && currentTime < end;
-    const baseScale = active ? sampleSpline(long ? SCALE_LONG : SCALE_SHORT, p) : 1;
-    const baseY = active ? sampleSpline(long ? YOFF_LONG : YOFF_SHORT, p) : 0;
-    const baseGlow = active ? sampleSpline(GLOW, p) : 0;
-    const activePos = p * letters.length;
+    const live = currentTime >= start && currentTime < end;
+    const baseScale = live ? sampleCurve(wide ? LIFT_WIDE : LIFT_TIGHT, p) : 1;
+    const baseY = live ? sampleCurve(wide ? RISE_WIDE : RISE_TIGHT, p) : 0;
+    const baseGlow = live ? sampleCurve(FLARE, p) : 0;
+    const head = p * letters.length;
 
     for (let i = 0; i < letters.length; i++) {
       const lt = letters[i];
-      const dist = Math.abs(i - activePos);
-      const fScale = Math.max(0, 1 / (1 + Math.pow(dist, DIST_SCALE_EXP)));
-      const fGlow = Math.max(0, 1 / (1 + dist * DIST_GLOW_K));
+      const dist = Math.abs(i - head);
+      const fScale = Math.max(0, 1 / (1 + Math.pow(dist, FALLOFF_LIFT_EXP)));
+      const fGlow = Math.max(0, 1 / (1 + dist * FALLOFF_FLARE_K));
 
       lt.scaleSpring.setGoal(1 + (baseScale - 1) * fScale * emphStrength);
       lt.ySpring.setGoal(baseY * fScale * emphStrength);
@@ -247,16 +257,16 @@ window.LyricsEngine = (function () {
       lt.last = key;
 
       lt.el.style.transform =
-        `translate3d(0, calc(var(--DefaultLyricsSize) * ${(y * 2).toFixed(4)}), 0) scale(${s.toFixed(4)})`;
-      lt.el.style.setProperty("--ts-blur", (4 + 12 * g).toFixed(2) + "px");
-      lt.el.style.setProperty("--ts-op", Math.min(1, g * GLOW_OPACITY_MULT).toFixed(3));
+        `translate3d(0, calc(var(--line-type-size) * ${(y * 2).toFixed(4)}), 0) scale(${s.toFixed(4)})`;
+      lt.el.style.setProperty("--flare-blur", (4 + 12 * g).toFixed(2) + "px");
+      lt.el.style.setProperty("--flare-alpha", Math.min(1, g * FLARE_ALPHA_GAIN).toFixed(3));
     }
   }
 
   function emphasizeLine(rec, currentTime, dt) {
     for (const w of rec.words) {
-      const long = rec.lineMode || (w.endMs - w.startMs) >= LONGER_THAN_MS;
-      emphasizeSegment(w.letters, w.startMs, w.endMs, currentTime, dt, long);
+      const wide = rec.lineMode || (w.endMs - w.startMs) >= WIDE_MIN_MS;
+      emphasizeSegment(w.letters, w.startMs, w.endMs, currentTime, dt, wide);
     }
   }
 
@@ -294,17 +304,17 @@ window.LyricsEngine = (function () {
     for (let i = 0; i < lines.length; i++) {
       const rec = lines[i];
       if (rec.isInterlude) continue;
-      const st = getElementState(currentTime, rec.startMs, rec.endMs);
-      const changed = setLineState(rec, st);
+      const ph = phaseAt(currentTime, rec.startMs, rec.endMs);
+      const changed = setLinePhase(rec, ph);
 
       if (rec.lineMode) {
-        if (st === "Active") setPos(rec.el, gradPos(currentTime, rec.startMs, rec.endMs));
-        else if (changed) setPos(rec.el, st === "Sung" ? 100 : -20);
+        if (ph === PHASE_LIVE) setWipe(rec.el, wipeProgress(currentTime, rec.startMs, rec.endMs));
+        else if (changed) setWipe(rec.el, ph === PHASE_DONE ? 1 : 0);
       } else {
         for (const w of rec.words) {
-          const ws = getElementState(currentTime, w.startMs, w.endMs);
-          if (ws === "Active") { setPos(w.wg, gradPos(currentTime, w.startMs, w.endMs)); w.state = "Active"; }
-          else if (w.state !== ws) { setPos(w.wg, ws === "Sung" ? 100 : -20); w.state = ws; }
+          const wp = phaseAt(currentTime, w.startMs, w.endMs);
+          if (wp === PHASE_LIVE) { setWipe(w.wg, wipeProgress(currentTime, w.startMs, w.endMs)); w.state = PHASE_LIVE; }
+          else if (w.state !== wp) { setWipe(w.wg, wp === PHASE_DONE ? 1 : 0); w.state = wp; }
         }
       }
     }
@@ -325,15 +335,15 @@ window.LyricsEngine = (function () {
     if (scrollTarget >= 0) {
       const cur = lines[scrollTarget];
       if (cur.isInterlude) updateInterlude(cur, currentTime);
-      else if (emphasisMode === "spicy") emphasizeLine(cur, currentTime, dt);
+      else if (emphasisMode === "dynamic") emphasizeLine(cur, currentTime, dt);
     }
   }
 
   function forceSnap() { snapNext = true; }
 
   function setEmphasis(mode) {
-    emphasisMode = (mode === false || mode === "simple") ? "simple" : "spicy";
-    if (emphasisMode === "simple" && activeIndex >= 0) resetLetters(lines[activeIndex]);
+    emphasisMode = (mode === false || mode === "flat" || mode === "simple") ? "flat" : "dynamic";
+    if (emphasisMode === "flat" && activeIndex >= 0) resetLetters(lines[activeIndex]);
   }
 
   function setEmphasisStrength(f) { emphStrength = isFinite(f) ? f : 1; }
