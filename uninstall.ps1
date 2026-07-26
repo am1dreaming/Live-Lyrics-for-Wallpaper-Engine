@@ -75,6 +75,8 @@ Write-Host "create by MinenkoY`n"
 Stage "Relay autostart"
 schtasks /Delete /TN "$TaskName" /F 2>$null | Out-Null
 Unregister-ScheduledTask -TaskName "$TaskName" -Confirm:$false -ErrorAction SilentlyContinue
+# The second entry is a legacy shortcut name from an earlier release of this project,
+# kept only so users upgrading from that version do not keep a dead autostart entry.
 foreach ($name in @("Lyric Music Relay.lnk", "Spicy Lyrics Relay.lnk")) {
   $lnk = Join-Path ([Environment]::GetFolderPath("Startup")) $name
   if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force }

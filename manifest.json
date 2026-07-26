@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Live Lyrics for Wallpaper Engine",
+    "description": "Streams the current Spotify track, word-by-word synced lyrics and cover art to a Wallpaper Engine wallpaper. Needs the companion wallpaper and local relay (see README).",
+    "preview": "wallpaper/preview.gif",
+    "main": "bridge/spicetify-lyrics-bridge.js",
+    "readme": "README.md",
+    "authors": [
+      { "name": "am1dreaming", "url": "https://github.com/am1dreaming" }
+    ],
+    "tags": ["lyrics", "wallpaper", "desktop", "integration"]
+  }
+]
