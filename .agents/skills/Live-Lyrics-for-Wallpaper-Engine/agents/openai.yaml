@@ -1,0 +1,6 @@
+interface:
+  display_name: "Live Lyrics For Wallpaper Engine"
+  short_description: "Repo-specific patterns and workflows for Live-Lyrics-for-Wallpaper-Engine"
+  default_prompt: "Use the Live-Lyrics-for-Wallpaper-Engine repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
