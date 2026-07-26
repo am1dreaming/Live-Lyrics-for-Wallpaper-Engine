@@ -6,6 +6,7 @@ window.Background = (function () {
   const layers = [document.getElementById("cover0"), document.getElementById("cover1")];
   const customEl = document.getElementById("bg-custom");
   const videoEl = document.getElementById("bg-video");
+  const liveEl = document.getElementById("bg-live");
 
   let front = 0;
   let lastCover = null;
@@ -13,6 +14,8 @@ window.Background = (function () {
   let color = "#0b0b12";
   let image = "";
   let video = "";
+  let appleLiveUrl = "";
+  let canvasLiveUrl = "";
   let accentEnabled = false;
   let proxyBase = "";
   let accentToken = 0;
@@ -135,7 +138,7 @@ window.Background = (function () {
 
   function setCover(url) {
     lastCover = url;
-    if (mode === "cover") applyCover(url);
+    if (mode === "cover" || mode === "livecover" || mode === "canvas") applyCover(url);
     if (accentEnabled) extractAccent(url);
   }
 
@@ -168,14 +171,49 @@ window.Background = (function () {
 
   function stopVideo() { if (!videoEl.paused) videoEl.pause(); }
 
+  // Full-screen live background layer, shared by two sources:
+  //   "livecover" mode → animated album cover (Apple art)
+  //   "canvas" mode    → filtered Spotify Canvas
+  // Falls back to the static blurred cover when the active source has nothing.
+  liveEl.addEventListener("error", () => { liveEl.classList.remove("show"); });
+
+  function currentLiveUrl() {
+    if (mode === "livecover") return appleLiveUrl;
+    if (mode === "canvas") return canvasLiveUrl;
+    return "";
+  }
+
+  function applyLive() {
+    const url = currentLiveUrl();
+    if (url) {
+      liveEl.muted = true;
+      if (liveEl.getAttribute("src") !== url) liveEl.src = url;
+      liveEl.play().catch(() => {});
+      liveEl.classList.add("show");
+    } else {
+      liveEl.classList.remove("show");
+      if (!liveEl.paused) liveEl.pause();
+    }
+  }
+
+  function setLiveCover(url) { appleLiveUrl = url || ""; applyLive(); }
+  function clearLiveCover() { appleLiveUrl = ""; applyLive(); }
+  function setCanvasVideo(url) { canvasLiveUrl = url || ""; applyLive(); }
+  function clearCanvasVideo() { canvasLiveUrl = ""; applyLive(); }
+
   function refresh() {
     bg.classList.toggle("video", mode === "video");
-    if (mode === "cover") {
+    bg.classList.toggle("livecover", mode === "livecover");
+    bg.classList.toggle("canvas", mode === "canvas");
+    if (mode === "cover" || mode === "livecover" || mode === "canvas") {
       bg.classList.remove("custom");
       stopVideo();
       applyCover(lastCover);
+      applyLive();
     } else {
       bg.classList.add("custom");
+      liveEl.classList.remove("show");
+      if (!liveEl.paused) liveEl.pause();
       if (mode === "video") applyVideo();
       else { stopVideo(); applyCustom(); }
     }
@@ -186,5 +224,9 @@ window.Background = (function () {
   function setImage(src) { image = src; if (mode === "image") applyCustom(); }
   function setVideo(src) { video = src; if (mode === "video") applyVideo(); }
 
-  return { setCover, setMode, setColor, setImage, setVideo, setAccentEnabled, setProxyBase };
+  return {
+    setCover, setMode, setColor, setImage, setVideo,
+    setAccentEnabled, setProxyBase, setLiveCover, clearLiveCover,
+    setCanvasVideo, clearCanvasVideo,
+  };
 })();

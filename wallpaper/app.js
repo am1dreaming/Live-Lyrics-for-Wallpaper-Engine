@@ -1,3 +1,4 @@
+// MinenkoY
 (function () {
   "use strict";
 
@@ -27,6 +28,7 @@
   let liveCoversOn = true;
   let currentArtist = "";
   let currentAlbum = "";
+  let currentTrackId = "";
   let pendingArt = null;
   let artQuality = 0;
 
@@ -40,12 +42,14 @@
     artVideoEl.classList.remove("show");
     artVideoEl.removeAttribute("src");
     try { artVideoEl.load(); } catch (_) {}
+    Background.clearLiveCover();
   }
 
   function applyAnimatedArt(info) {
     pendingArt = info;
     if (!liveCoversOn || !info) return;
     if (info.artist !== currentArtist || info.album !== currentAlbum) return;
+    Background.setLiveCover(info.url);
     if (artVideoEl.getAttribute("src") === info.url) return;
     artVideoEl.muted = true;
     artVideoEl.src = info.url;
@@ -77,6 +81,8 @@
   let lastRealMessage = Date.now();
   const appStart = Date.now();
 
+  // lyrics source: "auto" (relay if running, else Windows Media), "windows"
+  // (built-in only), "relay" (Spicetify bridge only). Default set from WE props.
   let lyricsSource = "auto";
   let lastBridgeMsg = 0;
 
@@ -139,7 +145,7 @@
     let msg;
     try { msg = JSON.parse(raw); } catch (_) { return; }
     lastBridgeMsg = Date.now();
-    if (lyricsSource === "windows") return;
+    if (lyricsSource === "windows") return; // Windows-Media mode ignores the relay
     lastRealMessage = Date.now();
     everReceived = true;
     usingMock = false;
@@ -151,6 +157,8 @@
     return connected && (Date.now() - lastBridgeMsg) < 10000;
   }
 
+  // Built-in path (WE native media + LRCLIB) fed by media-native.js. Applied only
+  // when the relay is not the active source, so the Spicetify bridge always wins.
   function onNativeMessage(msg) {
     if (lyricsSource === "relay") return;
     if (lyricsSource === "auto" && bridgeActive()) return;
@@ -161,8 +169,15 @@
     applyMessage(msg, false);
   }
 
+  function applyCanvasVideo(info) {
+    if (!info) return;
+    if (info.trackId && currentTrackId && info.trackId !== currentTrackId) return;
+    Background.setCanvasVideo(info.url || "");
+  }
+
   function applyMessage(msg, isMock) {
     if (msg.animatedArt) { applyAnimatedArt(msg.animatedArt); return; }
+    if (msg.canvasVideo) { applyCanvasVideo(msg.canvasVideo); return; }
 
     if (typeof msg.position === "number" && typeof msg.timestamp === "number") {
       resync(msg.position, msg.timestamp, msg.isPlaying);
@@ -178,11 +193,13 @@
       state.trackKey = key;
       currentArtist = msg.track.artist || "";
       currentAlbum = msg.track.album || "";
+      currentTrackId = msg.track.id || "";
 
       updateMeta(msg.track);
       if (trackChanged || isMock) {
         Background.setCover(msg.track.coverUrl || "");
         clearArtVideo();
+        Background.clearCanvasVideo();
         if (pendingArt && pendingArt.artist === currentArtist &&
             pendingArt.album === currentAlbum) {
           applyAnimatedArt(pendingArt);
@@ -348,10 +365,10 @@
   }
   function applyBgFit(mode) {
     const map = {
-      cover: ["cover", "no-repeat", "cover"],
-      contain:["contain", "no-repeat", "contain"],
+      cover: ["cover",     "no-repeat", "cover"],
+      contain:["contain",   "no-repeat", "contain"],
       fill: ["100% 100%", "no-repeat", "fill"],
-      tile: ["auto", "repeat", "cover"],
+      tile: ["auto",      "repeat",    "cover"],
     };
     const m = map[mode] || map.cover;
     const s = document.documentElement.style;
@@ -364,9 +381,9 @@
     fontSize:          ["--font-scale",            (v) => (v / 100).toFixed(3)],
     lyricsWidth:       ["--lyrics-width",          (v) => v + "%"],
     visibleAmount:     ["--lyrics-vh",             (v) => v + "%"],
-    activeLineOpacity: ["--Vocal-Active-opacity",  (v) => (v / 100).toFixed(3)],
-    notSungOpacity:    ["--Vocal-NotSung-opacity", (v) => (v / 100).toFixed(3)],
-    sungOpacity:       ["--Vocal-Sung-opacity",    (v) => (v / 100).toFixed(3)],
+    activeLineOpacity: ["--line-op-live",          (v) => (v / 100).toFixed(3)],
+    notSungOpacity:    ["--line-op-idle",          (v) => (v / 100).toFixed(3)],
+    sungOpacity:       ["--line-op-done",          (v) => (v / 100).toFixed(3)],
     activeLineScale:   ["--active-scale",          (v) => (v / 100).toFixed(3)],
     activeHighlight:   ["--highlight-enabled",     (v) => (v ? "1" : "0")],
     highlightBlur:     ["--highlight-blur",        (v) => v + "px"],

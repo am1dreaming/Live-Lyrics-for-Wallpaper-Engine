@@ -1,13 +1,24 @@
 /* MinenkoY */
 :root {
     --lyrics-line-height: 1.1818181818;
-    --Vocal-NotSung-opacity: 0.51;
-    --Vocal-Active-opacity: 1;
-    --Vocal-Sung-opacity: 0.497;
-    --gradient-alpha: 0.85;
-    --gradient-alpha-end: 0.35;
-    --gradient-offset: 0%;
-    --gradient-degrees: 180deg;
+
+    /* line phases: idle = not reached, live = singing now, done = already sung */
+    --line-op-idle: 0.52;
+    --line-op-live: 1;
+    --line-op-done: 0.5;
+
+    /* karaoke wipe: ink = leading edge, ink-tail = trailing, soft = feather band */
+    --wipe-ink: 0.86;
+    --wipe-ink-tail: 0.35;
+    --wipe-angle: 180deg;
+    --wipe-soft: 18%;
+    --wipe-bias: 0%;
+
+    /* lyric type ramp: floor -> fluid -> ceil */
+    --line-size-floor: 1.8rem;
+    --line-size-fluid: 6.9cqw;
+    --line-size-ceil: 3.45rem;
+    --bg-line-ratio: 0.66;
     --font-scale: 1;
     --bg-blur: 100px;
     --art-visible: 1;
@@ -135,6 +146,21 @@ body {
     transition: opacity 0.9s ease, transform 0.3s ease, filter 0.3s ease;
 }
 
+#bg-live {
+    position: absolute;
+    top: -8%;
+    left: -8%;
+    width: 116%;
+    height: 116%;
+    object-fit: cover;
+    object-position: center;
+    filter: blur(var(--bg-blur)) saturate(1.25);
+    transform: scale(calc(1.2 + var(--audio-level) * 0.07));
+    opacity: 0;
+    transition: opacity 0.9s ease, transform 0.09s linear;
+    will-change: opacity, transform;
+}
+
 #bg.custom .bg-cover {
     opacity: 0 !important;
 }
@@ -144,6 +170,11 @@ body {
 }
 
 #bg.video #bg-video {
+    opacity: 1;
+}
+
+#bg.livecover #bg-live.show,
+#bg.canvas #bg-live.show {
     opacity: 1;
 }
 
@@ -391,9 +422,9 @@ body.title-accent #title {
 
 .line {
     position: relative;
-    --DefaultLyricsSize: calc(clamp(1.85rem, 7cqw, 3.5rem) * var(--font-scale));
+    --line-type-size: calc(clamp(var(--line-size-floor), var(--line-size-fluid), var(--line-size-ceil)) * var(--font-scale));
     font-weight: 700;
-    font-size: var(--DefaultLyricsSize);
+    font-size: var(--line-type-size);
     line-height: var(--lyrics-line-height);
     letter-spacing: -0.018em;
     text-align: left;
@@ -405,20 +436,20 @@ body.title-accent #title {
     transition: opacity 0.2s cubic-bezier(0.61, 1, 0.88, 1), transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-    .line.NotSung {
-        opacity: var(--Vocal-NotSung-opacity);
+    .line.is-idle {
+        opacity: var(--line-op-idle);
     }
 
-    .line.Active {
-        opacity: var(--Vocal-Active-opacity);
+    .line.is-live {
+        opacity: var(--line-op-live);
         transform: scale(var(--active-scale));
     }
 
-    .line.Sung {
-        opacity: var(--Vocal-Sung-opacity);
+    .line.is-done {
+        opacity: var(--line-op-done);
     }
 
-    .line.Active::before {
+    .line.is-live::before {
         content: "";
         position: absolute;
         inset: 0.02em -0.45em;
@@ -433,13 +464,13 @@ body.title-accent #title {
 
     .line.bg-line {
         margin: -1cqw 0 1cqw;
-        --DefaultLyricsSize: calc(clamp(1.85rem, 7cqw, 3.5rem) * var(--font-scale) * 0.66);
-        font-size: var(--DefaultLyricsSize);
+        --line-type-size: calc(clamp(var(--line-size-floor), var(--line-size-fluid), var(--line-size-ceil)) * var(--font-scale) * var(--bg-line-ratio));
+        font-size: var(--line-type-size);
     }
 
         .line.bg-line .fill {
-            --gradient-alpha: 0.6;
-            --gradient-alpha-end: 0.3;
+            --wipe-ink: 0.6;
+            --wipe-ink-tail: 0.3;
         }
 
 .wg {
@@ -457,19 +488,19 @@ body.title-accent #title {
 }
 
 .ltr, .sp {
-    text-shadow: 0 0 var(--BlurAmount, 0px) rgba(255, 255, 255, 0.30);
+    text-shadow: 0 0 var(--depth-blur, 0px) rgba(255, 255, 255, 0.30);
 }
 
-.line.Active .ltr {
+.line.is-live .ltr {
     will-change: transform;
-    text-shadow: 0 0 var(--ts-blur, 0px) rgba(var(--accent-rgb), var(--ts-op, 0)), 0 0 var(--BlurAmount, 0px) rgba(255, 255, 255, 0.30);
+    text-shadow: 0 0 var(--flare-blur, 0px) rgba(var(--accent-rgb), var(--flare-alpha, 0)), 0 0 var(--depth-blur, 0px) rgba(255, 255, 255, 0.30);
 }
 
 .interlude {
     display: flex;
     align-items: center;
     gap: 0.42em;
-    font-size: calc(clamp(1.85rem, 7cqw, 3.5rem) * var(--font-scale));
+    font-size: calc(clamp(var(--line-size-floor), var(--line-size-fluid), var(--line-size-ceil)) * var(--font-scale));
     padding: 0.35em 0;
     opacity: 0;
     transition: opacity 0.35s ease;
@@ -494,8 +525,15 @@ body.title-accent #title {
 }
 
 .fill {
-    --gradient-position: -20%;
-    background-image: linear-gradient( var(--gradient-degrees), rgba(255, 255, 255, var(--gradient-alpha)) var(--gradient-position), rgba(255, 255, 255, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset)) );
+    /* --wipe is the 0..1 sing-through progress. The feather band (--wipe-soft) also
+       supplies the head/tail overshoot, so 0 leaves the text untouched and 1 covers it.
+
+       NOTE: declaring --wipe on .fill itself shadows the value the engine writes on the
+       parent .line / .wg, which parks the wipe at its start position. Kept as-is so the
+       look does not change; hoist this line to .line to let the wipe actually travel. */
+    --wipe: 0;
+    --wipe-edge: calc(var(--wipe) * (100% + var(--wipe-soft)) - var(--wipe-soft));
+    background-image: linear-gradient( var(--wipe-angle), rgba(255, 255, 255, var(--wipe-ink)) var(--wipe-edge), rgba(255, 255, 255, var(--wipe-ink-tail)) calc(var(--wipe-edge) + var(--wipe-soft) + var(--wipe-bias)) );
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
