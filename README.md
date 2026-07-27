@@ -8,6 +8,7 @@ Karaoke lyrics · cover-art backgrounds · audio-reactive · ultrawide-ready.
 No React, no bloat - just clean vanilla JS/CSS.
 <br/>
 
+
 <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?logo=windows&logoColor=white  " />
 <img src="https://img.shields.io/badge/Wallpaper%20Engine-WEB-1a1a1a" />
 <img src="https://img.shields.io/badge/Spotify-via%20Spicetify-1DB954?logo=spotify&logoColor=white" />
