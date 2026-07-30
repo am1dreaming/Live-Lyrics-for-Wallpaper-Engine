@@ -26,6 +26,7 @@ animated album covers. See **How it works** in the [README](README.md).
 Spotify (Spicetify ext) ──ws client──▶ bridge-server (Node, :8973) ──ws relay──▶ Wallpaper (WE)
 ```
 
+
 ---
 
 ## 🛠 Setting up a dev environment
