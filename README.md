@@ -66,7 +66,7 @@ iwr -useb https://raw.githubusercontent.com/am1dreaming/Live-Lyrics-for-Wallpape
 
 **🖼 Album art & info**
 - Cover art, title, artist, progress bar + time
-- Optional **live covers** (Apple-Music animated art via the bridge)
+- Optional **live covers** (animated art via the bridge)
 - Everything is positionable, resizable, and toggleable
 
 </td>
