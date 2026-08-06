@@ -1,4 +1,4 @@
-# MinenkoY
+
 # lyric music by am1dreaming - installer.
 param(
   [ValidateSet('Ask','Full','NoWallpaper','WallpaperOnly','Custom')]
