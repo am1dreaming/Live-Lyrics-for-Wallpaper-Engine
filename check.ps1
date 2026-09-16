@@ -234,18 +234,43 @@ function Read-IniSectionValue([string]$path, [string]$section, [string]$key) {
   return $null
 }
 
-# The decisive test: xpui.spa is a zip, and a patched one carries Spicetify's
-# wrapper plus every configured extension. A Spotify update rewrites this file
-# and silently throws all of that away.
-function Test-SpotifyPatched([string]$spa, [string]$extName) {
-  $out = [pscustomobject]@{ readable = $false; hasWrapper = $false; hasExtension = $false; error = "" }
-  if (-not (Test-Path -LiteralPath $spa -PathType Leaf)) { $out.error = "xpui.spa not found"; return $out }
+# The decisive test: is our extension actually inside the running Spotify UI?
+# Spicetify ships two layouts - it either extracts xpui.spa into an Apps\xpui
+# folder (current CLI) or leaves a patched .spa zip behind (older CLI). Both
+# carry a spicetifyWrapper marker; a Spotify update throws either one away.
+function Test-SpotifyPatched([string]$appsDir, [string]$extName) {
+  $out = [pscustomobject]@{
+    readable = $false; layout = ""; hasWrapper = $false; hasExtension = $false; error = ""
+  }
+
+  $folder = Join-Path $appsDir "xpui"
+  $index = Join-Path $folder "index.html"
+  if (Test-Path -LiteralPath $index -PathType Leaf) {
+    $out.readable = $true
+    $out.layout = "extracted folder"
+    try {
+      $html = Get-Content -LiteralPath $index -Raw -ErrorAction Stop
+      $out.hasWrapper = [bool]($html -match "spicetifyWrapper")
+      if ($html -match [regex]::Escape($extName)) { $out.hasExtension = $true }
+    } catch { $out.error = $_.Exception.Message }
+    # spicetify copies every configured extension next to the app
+    $extFile = Join-Path (Join-Path $folder "extensions") $extName
+    if (Test-Path -LiteralPath $extFile -PathType Leaf) { $out.hasExtension = $true }
+    return $out
+  }
+
+  $spa = Join-Path $appsDir "xpui.spa"
+  if (-not (Test-Path -LiteralPath $spa -PathType Leaf)) {
+    $out.error = "neither an Apps\xpui folder nor xpui.spa was found"
+    return $out
+  }
   $zip = $null
   try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
     $zip = [System.IO.Compression.ZipFile]::OpenRead($spa)
     $names = @($zip.Entries | Select-Object -ExpandProperty FullName)
     $out.readable = $true
+    $out.layout = "xpui.spa archive"
     $out.hasWrapper = [bool]($names -match "spicetifyWrapper")
     $out.hasExtension = [bool]($names -match [regex]::Escape($extName))
   } catch {
@@ -399,24 +424,6 @@ if (-not $haveAutostart) {
 # ---------------------------------------------------------------------------
 Section "Relay process and port"
 
-$relayProcs = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
-  Where-Object { $_.CommandLine -and $_.CommandLine -like "*bridge-server.js*" })
-
-if ($relayProcs.Count -eq 0) {
-  Row "FAIL" "Relay process" "no node.exe is running bridge-server.js" ("Start it: wscript '" + (Join-Path $BridgeInstall "start-bridge.vbs") + "'  - or just log out and back in.")
-} elseif ($relayProcs.Count -eq 1) {
-  $rp = $relayProcs[0]
-  $since = ""
-  try { $since = " since " + $rp.CreationDate.ToString("yyyy-MM-dd HH:mm") } catch { }
-  Row "OK" "Relay process" ("PID " + $rp.ProcessId + $since)
-  if (-not ($rp.CommandLine -like ("*" + $BridgeInstall + "*"))) {
-    Row "WARN" "  running copy" $rp.CommandLine "This relay was started from outside the install folder, so it may be a different version."
-  }
-} else {
-  Row "WARN" "Relay process" ("" + $relayProcs.Count + " relays running at once") "Only one is needed - the extras are leftovers from earlier sessions."
-  foreach ($rp in $relayProcs) { Row "INFO" ("  PID " + $rp.ProcessId) $rp.CommandLine }
-}
-
 $portFile = Join-Path $BridgeInstall "bridge-port.json"
 $reportedPort = 0
 if (Test-Path -LiteralPath $portFile -PathType Leaf) {
@@ -436,6 +443,7 @@ if (Test-Path -LiteralPath $portFile -PathType Leaf) {
 }
 
 $listenPort = 0
+$listenPid = 0
 for ($i = 0; $i -lt $PortSpan; $i++) {
   $cand = $Port + $i
   $conn = Get-NetTCPConnection -LocalPort $cand -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -446,6 +454,7 @@ for ($i = 0; $i -lt $PortSpan; $i++) {
   $banner = Http-Banner $cand 2500
   if ($banner.reached -and $banner.body -like "lyrics-bridge relay*") {
     $listenPort = $cand
+    $listenPid = [int]$conn.OwningProcess
     $note = ""
     if ($cand -ne $Port) { $note = "   (fallback port - preferred " + $Port + " was not usable)" }
     Row "OK" ("Port " + $cand) ("our relay is listening, PID " + $conn.OwningProcess + $note)
@@ -456,6 +465,41 @@ for ($i = 0; $i -lt $PortSpan; $i++) {
   $op = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
   if ($op) { $who = $op.ProcessName + " (PID " + $op.Id + ")" } else { $who = "PID " + $conn.OwningProcess }
   Row "WARN" ("Port " + $cand) ("held by another program: " + $who) "Not our relay - the relay will move to the next port in the ladder."
+}
+
+# Identify the process behind the socket. A relay started by the elevated
+# installer hides its Path and CommandLine from an ordinary user session, so the
+# socket owner - not the WMI command line - is the authoritative answer here.
+$relayProcs = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.CommandLine -and $_.CommandLine -like "*bridge-server.js*" })
+
+if ($listenPid -gt 0) {
+  $owner = Get-Process -Id $listenPid -ErrorAction SilentlyContinue
+  $ownerName = "unknown"
+  if ($owner) { $ownerName = $owner.ProcessName }
+  $known = @($relayProcs | Where-Object { $_.ProcessId -eq $listenPid })
+  if ($known.Count -gt 0) {
+    $since = ""
+    try { $since = " since " + $known[0].CreationDate.ToString("yyyy-MM-dd HH:mm") } catch { }
+    Row "OK" "Relay process" ("PID " + $listenPid + $since)
+    if (-not ($known[0].CommandLine -like ("*" + $BridgeInstall + "*"))) {
+      Row "WARN" "  running copy" $known[0].CommandLine "Started from outside the install folder, so it may be a different version."
+    }
+  } else {
+    Row "OK" "Relay process" ("PID " + $listenPid + " (" + $ownerName + ".exe), command line not readable")
+    Row "INFO" "  elevated" "the relay runs as administrator - install.ps1 elevates itself and starts it from there; the logon task will start it unelevated next time"
+  }
+} elseif ($relayProcs.Count -gt 0) {
+  Row "WARN" "Relay process" ("" + $relayProcs.Count + " relay process(es) running but none is serving a port") "A relay that failed to bind is useless - check the port rows above."
+  foreach ($rp in $relayProcs) { Row "INFO" ("  PID " + $rp.ProcessId) $rp.CommandLine }
+} else {
+  Row "FAIL" "Relay process" "no relay process found" ("Start it: wscript '" + (Join-Path $BridgeInstall "start-bridge.vbs") + "'  - or just log out and back in.")
+}
+
+$extraRelays = @($relayProcs | Where-Object { $_.ProcessId -ne $listenPid })
+if ($extraRelays.Count -gt 0) {
+  Row "WARN" "Extra relays" ("" + $extraRelays.Count + " more relay process(es) are running") "Only one is needed - the others are leftovers."
+  foreach ($rp in $extraRelays) { Row "INFO" ("  PID " + $rp.ProcessId) $rp.CommandLine }
 }
 
 if ($listenPort -eq 0) {
@@ -571,21 +615,20 @@ if (Test-Path -LiteralPath $SpicetifyConf -PathType Leaf) {
   Row "WARN" "Spicetify config" "config-xpui.ini not found" "Spicetify has never been configured for this account."
 }
 
-$spa = Join-Path $env:APPDATA "Spotify\Apps\xpui.spa"
-$patch = Test-SpotifyPatched $spa $ExtName
+$appsDir = Join-Path $env:APPDATA "Spotify\Apps"
+$patch = Test-SpotifyPatched $appsDir $ExtName
 if (-not $patch.readable) {
-  Row "WARN" "Spotify patch state" ("xpui.spa could not be inspected: " + $patch.error)
+  Row "WARN" "Spotify patch state" ("could not be inspected: " + $patch.error)
 } elseif ($patch.hasExtension) {
-  Row "OK" "Spotify patch state" "xpui.spa is patched and carries our extension"
+  Row "OK" "Spotify patch state" ("patched (" + $patch.layout + ") and our extension is inside it")
   $script:Facts["patched"] = $true
 } elseif ($patch.hasWrapper) {
-  Row "FAIL" "Spotify patch state" "xpui.spa is patched by Spicetify, but our extension is NOT inside it" ("Run in a NON-admin terminal: spicetify config extensions " + $ExtName + " ; spicetify apply")
+  Row "FAIL" "Spotify patch state" ("Spicetify patched Spotify (" + $patch.layout + "), but our extension is NOT in it") ("The extension is installed yet not part of the patch. In a NON-admin terminal: spicetify config extensions " + $ExtName + " ; spicetify apply")
   $script:Facts["patched"] = $false
+  $script:Facts["patchedWithoutExt"] = $true
 } else {
-  Row "FAIL" "Spotify patch state" "xpui.spa carries no Spicetify patch at all - the bridge cannot load" "Spotify overwrote its files (usually an auto-update). In a NON-admin terminal: spicetify upgrade ; spicetify backup apply"
+  Row "FAIL" "Spotify patch state" ("no Spicetify patch at all (" + $patch.layout + ") - the bridge cannot load") "Spotify overwrote its own files, usually an auto-update. In a NON-admin terminal: spicetify upgrade ; spicetify backup apply"
   $script:Facts["patched"] = $false
-  $spaTime = (Get-Item -LiteralPath $spa -ErrorAction SilentlyContinue).LastWriteTime
-  if ($spaTime) { Row "INFO" "  xpui.spa rewritten" $spaTime.ToString("yyyy-MM-dd HH:mm") }
 }
 
 if (Test-Path -LiteralPath $SpotifyUpdate) {
@@ -704,6 +747,14 @@ if ($relayUp -and $dataUp) {
 } elseif ($relayUp -and -not $spotOn) {
   Write-Host "  Relay is up, Spotify is closed. Start Spotify, play a track and" -ForegroundColor Yellow
   Write-Host "  run this check again to confirm the bridge actually feeds data." -ForegroundColor Yellow
+} elseif ($relayUp -and $script:Facts["patchedWithoutExt"]) {
+  Write-Host "  Relay is up and Spotify is patched, but OUR EXTENSION is not part" -ForegroundColor Yellow
+  Write-Host "  of that patch, so nothing ever reaches the relay. Register it and" -ForegroundColor Yellow
+  Write-Host "  re-apply in a non-admin terminal, then restart Spotify:" -ForegroundColor Yellow
+  Write-Host ("      spicetify config extensions " + $ExtName) -ForegroundColor White
+  Write-Host "      spicetify apply" -ForegroundColor White
+  Write-Host "  Lyrics keep working through the Windows media path meanwhile," -ForegroundColor Yellow
+  Write-Host "  but animated covers and Canvas need this bridge and stay off." -ForegroundColor Yellow
 } elseif ($relayUp -and ($script:Facts.ContainsKey("patched")) -and (-not $script:Facts["patched"])) {
   Write-Host "  Relay is up, Spotify is playing, but the Spicetify patch is GONE," -ForegroundColor Yellow
   Write-Host "  so the extension never loads and never reaches the relay." -ForegroundColor Yellow
