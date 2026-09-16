@@ -3,7 +3,15 @@
   "use strict";
 
   const PORT = Number(localStorage.getItem("lyricsBridge:port")) || 8973;
-  const WS_URL = `ws://localhost:${PORT}`;
+  // The relay moves to the next port when its preferred one is blocked, so
+  // walk the same ladder here rather than hard-failing on a single port.
+  const PORT_SPAN = 4;
+  let portIndex = 0;
+  // A foreign listener can accept the TCP connection and then never answer
+  // the handshake; without this the socket hangs CONNECTING and the ladder
+  // never advances.
+  const CONNECT_TIMEOUT_MS = 4000;
+  const candidateUrl = () => `ws://localhost:${PORT + (portIndex % PORT_SPAN)}`;
 
   const BACKOFF = [1000, 2000, 5000];
 
@@ -34,7 +42,7 @@
       setTimeout(init, 100);
       return;
     }
-    log("Spicetify ready, starting bridge →", WS_URL);
+    log("Spicetify ready, starting bridge → ws://localhost:" + PORT + "-" + (PORT + PORT_SPAN - 1));
     main();
   }
 
@@ -52,16 +60,26 @@
 
   function connect() {
     clearTimeout(reconnectTimer);
+    const url = candidateUrl();
+    let sock;
     try {
-      ws = new WebSocket(WS_URL);
+      sock = new WebSocket(url);
     } catch (e) {
+      portIndex++;
       scheduleReconnect();
       return;
     }
+    ws = sock;
+    let opened = false;
+    const timer = setTimeout(() => {
+      if (sock.readyState === WebSocket.CONNECTING) { try { sock.close(); } catch (_) {} }
+    }, CONNECT_TIMEOUT_MS);
 
-    ws.onopen = () => {
+    sock.onopen = () => {
+      clearTimeout(timer);
+      opened = true;
       backoffIndex = 0;
-      log("connected to relay");
+      log("connected to relay", url);
 
       if (currentLyrics === undefined) {
         onSongChange();
@@ -70,15 +88,18 @@
       }
     };
 
-    ws.onmessage = () => {
+    sock.onmessage = () => {
 
     };
 
-    ws.onerror = () => {
-      try { ws.close(); } catch (_) {}
+    sock.onerror = () => {
+      try { sock.close(); } catch (_) {}
     };
 
-    ws.onclose = () => {
+    sock.onclose = () => {
+      clearTimeout(timer);
+      if (sock !== ws) return;             // superseded by a newer attempt
+      if (!opened) portIndex++;            // nothing was listening on that port
       scheduleReconnect();
     };
   }
