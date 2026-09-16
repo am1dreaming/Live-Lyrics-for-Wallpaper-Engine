@@ -417,6 +417,17 @@ wss.on("connection", (ws, req) => {
 
         onTrack(obj.track).catch((e) =>
           console.warn("[art] pipeline error:", e && e.message ? e.message : e));
+
+        // Spotify has no lyrics for a lot of catalogue, and while the relay is
+        // live the wallpaper stops consulting its own LRCLIB path — so an empty
+        // answer here used to mean no lyrics at all. Fill the gap ourselves.
+        // Deferred on purpose: a cache hit would otherwise publish the filled
+        // message before this handler forwards the original one, and the empty
+        // original would land last and wipe the lyrics again.
+        if (!hasLyricLines(obj.lyrics)) {
+          setImmediate(() => fillMissingLyrics(obj).catch((e) =>
+            console.warn("[lyrics] fallback error:", e && e.message ? e.message : e)));
+        }
       }
 
       if (obj && Object.prototype.hasOwnProperty.call(obj, "canvasUrl")) {
@@ -980,6 +991,48 @@ function lrcResultToLyrics(data, durationMs) {
     if (lines.length) return { type: "static", lines };
   }
   return null;
+}
+
+// ---- LRCLIB fallback for what Spotify does not have ------------------------
+// Looked up once per track and kept for half an hour, because the extension
+// re-sends the same track on every reconnect and every song change.
+const lyricsFillCache = new Map();      // "artist|title|album" -> lyrics or null
+const LYRICS_FILL_TTL_MS = 30 * 60 * 1000;
+let lyricsFillToken = 0;
+
+function hasLyricLines(lyrics) {
+  return !!(lyrics && Array.isArray(lyrics.lines) && lyrics.lines.length);
+}
+
+function publishFilledLyrics(msg, lyrics, track) {
+  lastFullMessage = broadcastObj(Object.assign({}, msg, { lyrics }));
+  console.log(`[lyrics] lrclib filled in: ${track.artist} — ${track.title} ` +
+    `(${lyrics.type}, ${lyrics.lines.length} lines)`);
+}
+
+async function fillMissingLyrics(msg) {
+  const track = msg.track || {};
+  if (!track.title || !track.artist) return;
+  const key = track.artist + "|" + track.title + "|" + (track.album || "");
+  const myToken = ++lyricsFillToken;
+
+  if (lyricsFillCache.has(key)) {
+    const cached = lyricsFillCache.get(key);
+    if (hasLyricLines(cached)) publishFilledLyrics(msg, cached, track);
+    return;
+  }
+
+  const lyrics = await lrclibLookup(track.artist, track.title, track.album, track.durationMs);
+  if (myToken !== lyricsFillToken) return;          // a newer track won the race
+
+  lyricsFillCache.set(key, hasLyricLines(lyrics) ? lyrics : null);
+  setTimeout(() => lyricsFillCache.delete(key), LYRICS_FILL_TTL_MS).unref();
+
+  if (!hasLyricLines(lyrics)) {
+    console.log(`[lyrics] no lrclib match for ${track.artist} — ${track.title}`);
+    return;
+  }
+  publishFilledLyrics(msg, lyrics, track);
 }
 
 function resolvePowershell() {
