@@ -258,7 +258,7 @@ function Install-BridgeFiles {
   $dstFull = [IO.Path]::GetFullPath($BridgeInstall).TrimEnd('\')
   if ($srcFull -ieq $dstFull) { OK "Relay already at its install location."; return }
   New-Item -ItemType Directory -Force -Path $BridgeInstall | Out-Null
-  robocopy $Bridge $BridgeInstall /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP /XD node_modules cache | Out-Null
+  robocopy $Bridge $BridgeInstall /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP /XD node_modules cache /XF bridge-port.json bridge-*.lock | Out-Null
   if ($LASTEXITCODE -ge 8) { Warn "robocopy hit locked files copying the relay - stop the relay / close the wallpaper and re-run." }
   if (Test-Path -LiteralPath (Join-Path $BridgeInstall "bridge-server.js")) { OK "Relay installed to $BridgeInstall." }
   else { throw "Failed to copy the relay to $BridgeInstall." }
