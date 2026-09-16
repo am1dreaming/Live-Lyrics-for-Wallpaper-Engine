@@ -520,8 +520,13 @@ if ($listenPort -eq 0) {
   if ($wsr.connected) {
     Row "OK" "WebSocket handshake" ("ws://127.0.0.1:" + $listenPort + " accepted the connection")
     if ($wsr.gotMessage) {
-      Row "OK" "  live data" ("now playing: " + $wsr.track + "   lyrics: " + $wsr.lyrics)
       $script:Facts["data"] = $true
+      $script:Facts["lyrics"] = ($wsr.lyrics -and $wsr.lyrics -ne "none")
+      if ($script:Facts["lyrics"]) {
+        Row "OK" "  live data" ("now playing: " + $wsr.track + "   lyrics: " + $wsr.lyrics)
+      } else {
+        Row "WARN" "  live data" ("now playing: " + $wsr.track + "   lyrics: none") "Track data flows but the message carries no lyrics. Spotify has none for this track and the relay did not fill them in from LRCLIB - check that the installed relay is current."
+      }
     } else {
       Row "WARN" "  live data" ("no track pushed within " + $WaitSeconds + "s") "The relay is up but nothing feeds it - see the Spicetify section."
       $script:Facts["data"] = $false
@@ -742,8 +747,13 @@ $relayUp = [bool]$script:Facts["relay"]
 $dataUp = [bool]$script:Facts["data"]
 $spotOn = [bool]$script:Facts["spotifyRunning"]
 
-if ($relayUp -and $dataUp) {
-  Write-Host "  Spicetify path is LIVE - word-synced lyrics are being delivered." -ForegroundColor Green
+if ($relayUp -and $dataUp -and $script:Facts["lyrics"]) {
+  Write-Host "  Spicetify path is LIVE and carrying lyrics. Everything works." -ForegroundColor Green
+} elseif ($relayUp -and $dataUp) {
+  Write-Host "  Spicetify path is LIVE - the track reaches the wallpaper, but the" -ForegroundColor Yellow
+  Write-Host "  message carries no lyrics. Spotify has none for this track; a current" -ForegroundColor Yellow
+  Write-Host "  relay fills that gap from LRCLIB, so an installed copy that is behind" -ForegroundColor Yellow
+  Write-Host "  the release folder is the first thing to check." -ForegroundColor Yellow
 } elseif ($relayUp -and -not $spotOn) {
   Write-Host "  Relay is up, Spotify is closed. Start Spotify, play a track and" -ForegroundColor Yellow
   Write-Host "  run this check again to confirm the bridge actually feeds data." -ForegroundColor Yellow
