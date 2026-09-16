@@ -24,6 +24,89 @@ if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 
+// If the preferred port cannot be bound at all we move to the next candidate
+// instead of giving up. Clients probe this same ladder, so keep it short.
+const PORT_CANDIDATES = [PORT, PORT + 1, PORT + 2, PORT + 3];
+const PORT_FILE = path.join(__dirname, "bridge-port.json");
+let activePort = PORT;
+// HOST is what we bind; this is what we connect back to when checking a port
+// and what we advertise in the port file.
+const PROBE_HOST = (HOST === "0.0.0.0" || HOST === "::") ? "127.0.0.1" : HOST;
+
+// ---- single-instance PID lock ---------------------------------------------
+// Two relays on the same port used to collide inside listen() and die with a
+// bare EADDRINUSE (invisible, since start-bridge.vbs runs us without a window).
+// The lock is per-port, so a second relay on another port (e.g. test-ssrf.js)
+// is still allowed to start.
+const LOCK_FILE = path.join(__dirname, `bridge-${PORT}.lock`);
+let lockOwned = false;
+
+function readLock() {
+  try {
+    const j = JSON.parse(fs.readFileSync(LOCK_FILE, "utf8"));
+    return j && Number(j.pid) > 0 ? j : null;
+  } catch (_) { return null; }
+}
+
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; }
+  catch (e) { return e.code === "EPERM"; }   // exists, just not ours to signal
+}
+
+// PIDs get recycled; make sure the holder still looks like a node process
+// before we believe a lock that survived a hard reboot.
+function looksLikeRelay(pid) {
+  if (process.platform !== "win32") return true;
+  try {
+    const out = execSync(`tasklist /FI "PID eq ${pid}" /NH /FO CSV`,
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
+    if (!/"\d+"/.test(out)) return false;    // "no tasks are running" banner
+    return /^"node\.exe"/i.test(out.trim());
+  } catch (_) { return true; }               // can't tell — assume it is ours
+}
+
+// false → another live relay holds this port, caller should exit quietly.
+function acquireLock() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = fs.openSync(LOCK_FILE, "wx");
+      fs.writeSync(fd, JSON.stringify({
+        pid: process.pid, port: PORT, host: HOST, startedAt: Date.now(),
+      }));
+      fs.closeSync(fd);
+      lockOwned = true;
+      return true;
+    } catch (e) {
+      if (e.code !== "EEXIST") {
+        console.warn(`[lock] cannot write ${LOCK_FILE}: ${e.message}; continuing unlocked`);
+        return true;
+      }
+      const held = readLock();
+      if (held && processAlive(held.pid) && looksLikeRelay(held.pid)) return false;
+      console.warn(`[lock] stale lock (pid ${held ? held.pid : "unreadable"}) — removing`);
+      try { fs.unlinkSync(LOCK_FILE); } catch (_) {}
+    }
+  }
+  return true;                                // lost the race twice — let listen() decide
+}
+
+function releaseLock() {
+  if (!lockOwned) return;
+  lockOwned = false;
+  const held = readLock();
+  if (held && Number(held.pid) !== process.pid) return;   // not ours anymore
+  try { fs.unlinkSync(LOCK_FILE); } catch (_) {}
+}
+
+if (!acquireLock()) {
+  const held = readLock();
+  console.log(`[lock] relay already running on port ${PORT} ` +
+    `(pid ${held ? held.pid : "?"}) — exiting`);
+  process.exit(0);
+}
+process.on("exit", releaseLock);
+
 function isPrivateOrReservedIp(ip) {
   ip = String(ip || "").toLowerCase().replace(/^\[|\]$/g, "");
   const m4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
@@ -138,14 +221,167 @@ const server = http.createServer((req, res) => {
     return;
   }
   res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("lyrics-bridge relay: ws + /art/*.webm cache\n");
+  res.end("lyrics-bridge relay: ws + /art/*.webm cache; port " + activePort + "\n");
 });
 
 const wss = new WebSocket.Server({ server });
-server.listen(PORT, HOST, () => {
-  console.log(`[bridge] relay listening on ws://${HOST}:${PORT} (+ http /art)`);
-  console.log(`[bridge] ffmpeg: ${FFMPEG || "NOT FOUND — animated covers disabled"}`);
+
+// ws mirrors every http-server error onto wss, and an EventEmitter with no
+// "error" listener throws. Without this sink a bind failure would blow up
+// before startListening()'s own handler ever ran.
+let listening = false;
+wss.on("error", (err) => {
+  if (!listening) return;                    // bind errors belong to startListening()
+  console.warn("[bridge] ws server error:", (err && err.message) || err);
 });
+
+// A relay that was killed a second ago can leave the port in TIME_WAIT, and
+// Windows does not set SO_REUSEADDR on listening sockets — so the first bind
+// after a fast restart legitimately fails. Retry with backoff before calling
+// the port dead.
+const LISTEN_BACKOFF_MS = [500, 1000, 2000, 3000, 5000];
+const RETRYABLE_LISTEN_ERRORS = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"]);
+
+// A failed bind looks identical in all three cases that actually matter:
+//   ours    - another copy of this relay already serves the port
+//   foreign - some unrelated program owns it
+//   free    - nothing is listening at all, yet we still cannot bind, which
+//             is the fingerprint of a firewall/AV blocking node.exe
+// GET / tells them apart: our own relay answers with a known text banner.
+function classifyPort(port) {
+  return new Promise((resolve) => {
+    const req = http.get({ host: PROBE_HOST, port, path: "/", timeout: 2000 }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => { if (body.length < 200) body += c; });
+      res.on("end", () => {
+        const text = body.trim();
+        if (text.startsWith("lyrics-bridge relay"))
+          resolve({ kind: "ours", detail: text.slice(0, 80) });
+        else
+          resolve({ kind: "foreign", detail: `speaks HTTP ${res.statusCode}` });
+      });
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ kind: "foreign", detail: "accepted the connection but never answered" });
+    });
+    req.on("error", (e) => {
+      const code = e && e.code ? e.code : String(e);
+      if (code === "ECONNREFUSED") resolve({ kind: "free", detail: "nothing is listening" });
+      else if (code === "ECONNRESET") resolve({ kind: "foreign", detail: "connection reset" });
+      else resolve({ kind: "unknown", detail: code });
+    });
+  });
+}
+
+const portVerdicts = new Map();        // port -> verdict, probed once per port
+
+// The primary port gets the long backoff (TIME_WAIT clears on its own); the
+// fallbacks only get a couple of quick tries, so a full sweep stays short.
+const FALLBACK_BACKOFF_MS = [500, 1500];
+
+function writePortFile(port) {
+  // Not readable from the wallpaper or the Spicetify extension (both are
+  // browser contexts) — this is for the installer, scripts and troubleshooting.
+  try {
+    fs.writeFileSync(PORT_FILE, JSON.stringify({
+      port, host: HOST, pid: process.pid,
+      ws: `ws://${HOST}:${port}`, http: `http://${PROBE_HOST}:${port}`,
+      preferredPort: PORT, updatedAt: new Date().toISOString(),
+    }, null, 2));
+  } catch (err) {
+    console.warn(`[bridge] cannot write ${PORT_FILE}: ${err.message}`);
+  }
+}
+
+function giveUpOnAllPorts(lastCode) {
+  const ports = PORT_CANDIDATES.join(", ");
+  const everyPortLooksFree = PORT_CANDIDATES.every(
+    (port) => (portVerdicts.get(port) || {}).kind === "free");
+  if (everyPortLooksFree) {
+    console.error(`[bridge] av-suspected: nothing is listening on any of ${ports}, ` +
+      `yet none of them could be bound (last error ${lastCode}). A firewall or ` +
+      `antivirus is almost certainly blocking node.exe — see the troubleshooting ` +
+      `section of the README.`);
+  } else {
+    console.error(`[bridge] no usable port in ${ports} (last error ${lastCode}) — ` +
+      `relay cannot start`);
+  }
+  process.exit(1);
+}
+
+function startListening(idx, attempt) {
+  const port = PORT_CANDIDATES[idx];
+  const backoff = idx === 0 ? LISTEN_BACKOFF_MS : FALLBACK_BACKOFF_MS;
+  attempt = attempt || 0;
+  const nth = (n) => n + (n === 1 ? " retry" : " retries");
+
+  // listen() leaves its callback attached when the bind fails, so each retry
+  // must detach both handlers itself — otherwise every earlier attempt fires
+  // again the moment one of them finally succeeds.
+  const onListening = () => {
+    server.removeListener("error", onError);
+    listening = true;
+    activePort = port;
+    writePortFile(port);
+    if (attempt) console.log(`[bridge] port ${port} bound after ${nth(attempt)}`);
+    if (port !== PORT) {
+      console.warn(`[bridge] port-fallback: preferred ${PORT} unavailable, ` +
+        `running on ${port} instead`);
+    }
+    console.log(`[bridge] relay listening on ws://${HOST}:${port} (+ http /art)`);
+    console.log(`[bridge] ffmpeg: ${FFMPEG || "NOT FOUND — animated covers disabled"}`);
+  };
+
+  const nextStep = (code) => {
+    if (RETRYABLE_LISTEN_ERRORS.has(code) && attempt < backoff.length) {
+      const wait = backoff[attempt];
+      console.warn(`[bridge] ${HOST}:${port} not bindable (${code}); ` +
+        `retry ${attempt + 1}/${backoff.length} in ${wait}ms`);
+      setTimeout(() => startListening(idx, attempt + 1), wait);
+      return;
+    }
+    if (idx + 1 < PORT_CANDIDATES.length) {
+      console.warn(`[bridge] giving up on ${port} (${code}) after ${nth(attempt)}; ` +
+        `trying ${PORT_CANDIDATES[idx + 1]}`);
+      startListening(idx + 1, 0);
+      return;
+    }
+    giveUpOnAllPorts(code);
+  };
+
+  const onError = (err) => {
+    server.removeListener("listening", onListening);
+    const code = err && err.code ? err.code : String(err);
+
+    // Probe once per port, on its first failure — retries would just repeat it.
+    if (attempt > 0 || portVerdicts.has(port)) return nextStep(code);
+
+    classifyPort(port).then((verdict) => {
+      portVerdicts.set(port, verdict);
+      if (verdict.kind === "ours") {
+        console.log(`[bridge] port-conflict-self: ${port} is already served by a ` +
+          `lyrics-bridge relay (${verdict.detail}) — nothing to do, exiting`);
+        process.exit(0);
+      }
+      if (verdict.kind === "free") {
+        console.warn(`[bridge] port-check ${port}: ${code} but ${verdict.detail} — ` +
+          `either a stale TIME_WAIT socket, or node.exe is being blocked`);
+      } else {
+        console.warn(`[bridge] port-conflict: ${port} is held by another program ` +
+          `(${verdict.detail})`);
+      }
+      nextStep(code);
+    });
+  };
+
+  server.once("listening", onListening);
+  server.once("error", onError);
+  server.listen(port, HOST);
+}
+
+startListening(0, 0);
 
 let lastFullMessage = null;
 let lastArtMessage = null;
@@ -499,7 +735,7 @@ function cacheFileFor(key) {
 
 function announce(artist, album, file) {
   try { const t = Date.now() / 1000; fs.utimesSync(file, t, t); } catch (_) {}
-  const url = `http://localhost:${PORT}/art/${path.basename(file)}`;
+  const url = `http://localhost:${activePort}/art/${path.basename(file)}`;
   lastArtMessage = broadcastObj({ animatedArt: { artist, album, url } });
   console.log(`[art] → ${artist} — ${album}: ${url}`);
 }
@@ -622,7 +858,7 @@ function freezeRatio(file) {
 
 function announceCanvas(trackId, file) {
   try { const t = Date.now() / 1000; fs.utimesSync(file, t, t); } catch (_) {}
-  const url = `http://localhost:${PORT}/art/${path.basename(file)}`;
+  const url = `http://localhost:${activePort}/art/${path.basename(file)}`;
   lastCanvasMessage = broadcastObj({ canvasVideo: { trackId, url } });
   console.log(`[canvas] → ${trackId}: ${url}`);
 }
@@ -844,10 +1080,14 @@ function startSmtcProducer() {
 pruneCache();
 startSmtcProducer();
 
-process.on("SIGINT", () => {
-  console.log("\n[bridge] shutting down");
+function shutdown(signal) {
+  console.log("[bridge] shutting down (" + signal + ")");
+  releaseLock();
   wss.close(() => process.exit(0));
-});
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 process.on("unhandledRejection", (e) => {
   console.error("[bridge] unhandledRejection:", (e && e.stack) || e);
