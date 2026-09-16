@@ -2,7 +2,16 @@
 (function () {
   "use strict";
 
+  // The relay falls back to the next free port when 8973 is unusable, so walk
+  // the same short ladder instead of assuming one fixed port.
   let port = 8973;
+  const PORT_SPAN = 4;
+  let portIndex = 0;
+  // A foreign listener can accept the TCP connection and then never answer
+  // the handshake; without this the socket hangs CONNECTING and the ladder
+  // never advances.
+  const CONNECT_TIMEOUT_MS = 4000;
+  const candidatePort = () => port + (portIndex % PORT_SPAN);
   const BACKOFF = [1000, 2000, 5000];
   const RESYNC_THRESHOLD = 300;
   const FALLBACK_AFTER = 5000;
@@ -106,23 +115,37 @@
 
   function connect() {
     clearTimeout(reconnectTimer);
+    const tryPort = candidatePort();
+    let sock;
     try {
-      ws = new WebSocket(`ws://localhost:${port}`);
+      sock = new WebSocket(`ws://localhost:${tryPort}`);
     } catch (e) {
+      portIndex++;
       scheduleReconnect();
       return;
     }
-    ws.onopen = () => {
+    ws = sock;
+    let opened = false;
+    const timer = setTimeout(() => {
+      if (sock.readyState === WebSocket.CONNECTING) { try { sock.close(); } catch (_) {} }
+    }, CONNECT_TIMEOUT_MS);
+
+    sock.onopen = () => {
+      clearTimeout(timer);
+      opened = true;
       connected = true;
       backoffIndex = 0;
       setStatus("connected");
-      Background.setProxyBase(`http://localhost:${port}`);
+      Background.setProxyBase(`http://localhost:${tryPort}`);
       sendArtConfig();
     };
-    ws.onmessage = (ev) => handleMessage(ev.data);
-    ws.onerror = () => { try { ws.close(); } catch (_) {} };
-    ws.onclose = () => {
+    sock.onmessage = (ev) => handleMessage(ev.data);
+    sock.onerror = () => { try { sock.close(); } catch (_) {} };
+    sock.onclose = () => {
+      clearTimeout(timer);
+      if (sock !== ws) return;             // superseded by a newer attempt
       connected = false;
+      if (!opened) portIndex++;            // nothing was listening on that port
       if (!usingMock) setStatus("disconnected");
       scheduleReconnect();
     };
@@ -138,6 +161,7 @@
   function reconnectNow() {
     try { if (ws) ws.close(); } catch (_) {}
     backoffIndex = 0;
+    portIndex = 0;
     connect();
   }
 
@@ -461,7 +485,7 @@
     lyricsSource:     (v) => { lyricsSource = String(v || "auto"); },
     websocketPort:    (v) => {
       const p = parseInt(v, 10);
-      if (p && p !== port) { port = p; reconnectNow(); }
+      if (p && p !== port) { port = p; portIndex = 0; reconnectNow(); }
     },
   };
 
